@@ -26,3 +26,7 @@ sealed interface DomainError {
     }
 }
 
+class DomainException(val error: DomainError) : RuntimeException(error.toString())
+
+fun DomainError.asException(): DomainException = DomainException(this)
+
