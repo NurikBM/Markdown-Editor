@@ -2,9 +2,9 @@
 
 ## Active State
 - **Current Phase:** Phase 4 — Block-Based Presentation Layer (MVP Core)
-- **Current Milestone:** Milestone 4.1 — Editor MVI ViewModel & Block Split/Merge Reducers
-- **Active Subtask:** Subtask 4.1.1 — EditorViewModel, EditorUiState, EditorIntent, and EditorEffect
-- **Status:** READY
+- **Current Milestone:** Milestone 4.2 — Block Compose UI Components & Design System
+- **Active Subtask:** Subtask 4.2.1 — Keyed LazyColumn block renderers and focus coordination
+- **Status:** IN_PROGRESS
 
 ## Completed Milestones
 - [x] **Milestone 1.1**: Bootstrap multi-module architecture (`:core`, `:domain`, `:data`, `:presentation`, `:app`) with verified Gradle sync and compilation across all layers. Created `AGENTS.md`, `STATE.md`, and version catalog `gradle/libs.versions.toml`.
@@ -17,12 +17,12 @@
 - [x] **Milestone 3.3**: Implemented SAF Document Tree Coordinator (`SafTreeCoordinator`) enforcing Android persistent grant LRU eviction (< 120 grants threshold) and `SecurityException` fault recovery. Verified with `SafTreeCoordinatorTest`.
 - [x] **Milestone 3.4**: Implemented domain repositories (`RoomMarkdownRepository`, `RoomSnapshotRepository`) and debounced auto-save coordinator (`AutoSaveCoordinator`) with typed error translation and background worker offloading (`Dispatchers.IO` and `limitedParallelism(2)`). Verified with `RoomMarkdownRepositoryTest`, `RoomSnapshotRepositoryTest`, and `AutoSaveCoordinatorTest`.
 - [x] **Milestone 3.5**: Configured Hilt dependency injection modules (`DataModule`, `DomainModule`) in `:app` providing persistence, parsers, and repositories. Full unit test suite (98/98 tasks) and debug APK assembly verified.
+- [x] **Milestone 4.1**: Implemented pure Clean Architecture block manipulation use cases in `:domain` (`SplitBlockUseCase`, `MergeBlockUseCase`, `UndoBlockUseCase`, `RedoBlockUseCase`, `DiffCalculator`), `EditorViewModel` with MVI contracts (`EditorUiState`, `EditorIntent`, `EditorEffect`), and verified unit tests with Turbine and MockK across `:domain` and `:presentation`.
 
 ## Immediate Next Steps
-1. **Milestone 4.1**: Implement `EditorViewModel` with MVI contracts (`EditorUiState`, `EditorIntent`, `EditorEffect`) in `:presentation`.
-2. **Milestone 4.2**: Implement block split handling (Enter keystroke splits block at cursor) and block merge handling (Backspace at block start merges with preceding block).
-3. **Milestone 4.3**: Build block-based `LazyColumn` Compose UI with keyed items per `BlockId` and isolated recomposition.
-4. **Milestone 4.4**: Wire Undo/Redo actions to `SnapshotRepository` and `DiffEngine`.
+1. **Milestone 4.2**: Implement keyed Compose block items per `BlockId` (`MarkdownBlockItem`, `HeadingBlock`, `ParagraphBlock`, `CodeBlock`, etc.), focus traversal coordination, and the `EditorScreen` container.
+2. **Milestone 4.3**: Integrate `EditorScreen` with `MainActivity` in `:app`, add Compose UI integration tests (`androidx.compose.ui:ui-test-junit4`).
+3. **Milestone 4.4**: Verification of full MVP editing flow (typing, split on Enter, merge on Backspace, Undo/Redo).
 
 ## Key Architecture Decisions (ADR Log)
 | Date       | Decision                                      | Context & Rationale                                                                                                                                                                                | Status   |
@@ -41,6 +41,7 @@
 | 2026-09-11 | Room Cascade & Normalized Block Persistence   | Stored document blocks in normalized `blocks` table with foreign key to `documents` with `CASCADE` delete to guarantee referential integrity and avoid orphaned rows.                             | ACCEPTED |
 | 2026-09-11 | Myers Bidirectional Diff Undo/Redo Engine     | Unified diff patches calculated via `DiffUtils` and `UnifiedDiffUtils` in `DiffEngine` ensuring deterministic forward and reverse transitions across process death.                              | ACCEPTED |
 | 2026-09-11 | Debounced Auto-Save & Offloaded Diffing       | Designed `AutoSaveCoordinator` using coroutine job cancellation debounce on `Dispatchers.IO` and Myers diff offloading to `diffAndParsing` dispatcher.                                            | ACCEPTED |
+| 2026-09-11 | Pure Domain Block Mutation & Diff Contracts   | Implemented `SplitBlockUseCase`, `MergeBlockUseCase`, `UndoBlockUseCase`, `RedoBlockUseCase`, and `DiffCalculator` in `:domain`, completely decoupled from presentation and persistence.          | ACCEPTED |
 
 ## Technical Baseline & Chosen Versions
 - **Kotlin:** `2.4.20`
@@ -59,5 +60,5 @@
 - **SDK Constraints:** `minSdk = 26`, `targetSdk = 37`, `compileSdk = 37`
 
 ## Session Handoff Block
-- **Last Verified State:** Phase 3 fully completed and verified. 100% test pass rate across all 5 modules (`.\gradlew.bat testDebugUnitTest` and `.\gradlew.bat test`), full APK generation (`.\gradlew.bat assembleDebug`) verified with 0 warnings/errors. Room persistence, Myers diff engine, SAF LRU eviction coordinator, and debounced auto-save pipeline operational.
-- **Exact Resumption Command/Action:** Proceed to Phase 4 — Block-Based Presentation Layer (MVP Core), starting with Milestone 4.1: EditorViewModel, EditorUiState, EditorIntent, EditorEffect, and block split/merge reducer logic.
+- **Last Verified State:** Milestone 4.1 complete. Full unit test suite (`.\gradlew.bat test`) verified with 98/98 tasks passing across all modules with 0 errors. `EditorViewModel` reducer logic, block split/merge actions, and undo/redo delta restoration fully tested with Turbine and MockK. Full APK assembly (`.\gradlew.bat assembleDebug`) verified.
+- **Exact Resumption Command/Action:** Proceed to Milestone 4.2: Block Compose UI Components & Design System in `:presentation` (`MarkdownBlockItem`, `EditorScreen`, focus management).

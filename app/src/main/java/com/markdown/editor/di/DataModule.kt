@@ -54,6 +54,10 @@ object DataModule {
 
     @Provides
     @Singleton
+    fun provideDiffCalculator(diffEngine: DiffEngine): com.markdown.editor.domain.diff.DiffCalculator = diffEngine
+
+    @Provides
+    @Singleton
     fun provideContentResolver(
         @ApplicationContext context: Context
     ): ContentResolver = context.contentResolver

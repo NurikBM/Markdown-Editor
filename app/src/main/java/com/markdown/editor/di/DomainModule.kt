@@ -32,5 +32,31 @@ object DomainModule {
         parser: MarkdownBlockParser,
         dispatcherProvider: DispatcherProvider
     ): UpdateBlockUseCase = UpdateBlockUseCase(parser, dispatcherProvider.diffAndParsing)
+
+    @Provides
+    @Singleton
+    fun provideSplitBlockUseCase(
+        parser: MarkdownBlockParser
+    ): com.markdown.editor.domain.usecase.SplitBlockUseCase = com.markdown.editor.domain.usecase.SplitBlockUseCase(parser)
+
+    @Provides
+    @Singleton
+    fun provideMergeBlockUseCase(
+        parser: MarkdownBlockParser
+    ): com.markdown.editor.domain.usecase.MergeBlockUseCase = com.markdown.editor.domain.usecase.MergeBlockUseCase(parser)
+
+    @Provides
+    @Singleton
+    fun provideUndoBlockUseCase(
+        diffCalculator: com.markdown.editor.domain.diff.DiffCalculator,
+        parser: MarkdownBlockParser
+    ): com.markdown.editor.domain.usecase.UndoBlockUseCase = com.markdown.editor.domain.usecase.UndoBlockUseCase(diffCalculator, parser)
+
+    @Provides
+    @Singleton
+    fun provideRedoBlockUseCase(
+        diffCalculator: com.markdown.editor.domain.diff.DiffCalculator,
+        parser: MarkdownBlockParser
+    ): com.markdown.editor.domain.usecase.RedoBlockUseCase = com.markdown.editor.domain.usecase.RedoBlockUseCase(diffCalculator, parser)
 }
 

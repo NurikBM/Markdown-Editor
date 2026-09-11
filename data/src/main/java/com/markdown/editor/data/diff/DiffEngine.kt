@@ -3,26 +3,19 @@ package com.markdown.editor.data.diff
 import com.github.difflib.DiffUtils
 import com.github.difflib.UnifiedDiffUtils
 import com.github.difflib.patch.PatchFailedException
-
-/**
- * Result of computing bidirectional Myers diff between two text versions.
- */
-data class DiffResult(
-    val forwardDiff: String,
-    val reverseDiff: String,
-    val hasChanges: Boolean
-)
+import com.markdown.editor.domain.diff.DiffCalculator
+import com.markdown.editor.domain.diff.DiffResult
 
 /**
  * Production Myers diff engine utilizing java-diff-utils.
  * Computes forward and backward diffs and applies patches deterministically.
  */
-class DiffEngine {
+class DiffEngine : DiffCalculator {
 
     /**
      * Computes bidirectional patch representations between [oldText] and [newText].
      */
-    fun computeDiff(oldText: String, newText: String): DiffResult {
+    override fun computeDiff(oldText: String, newText: String): DiffResult {
         if (oldText == newText) {
             return DiffResult(forwardDiff = "", reverseDiff = "", hasChanges = false)
         }
@@ -50,7 +43,7 @@ class DiffEngine {
     /**
      * Applies a unified diff patch to [sourceText].
      */
-    fun applyPatch(sourceText: String, unifiedDiff: String): Result<String> {
+    override fun applyPatch(sourceText: String, unifiedDiff: String): Result<String> {
         if (unifiedDiff.isBlank()) return Result.success(sourceText)
 
         return try {
@@ -70,4 +63,3 @@ class DiffEngine {
         return if (this.isEmpty()) emptyList() else this.lines()
     }
 }
-
