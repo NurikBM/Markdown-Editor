@@ -1,9 +1,9 @@
 # Project State & Working Memory
 
 ## Active State
-- **Current Phase:** Phase 4 — Block-Based Presentation Layer (MVP Core)
-- **Current Milestone:** Milestone 4.2 — Block Compose UI Components & Design System
-- **Active Subtask:** Subtask 4.2.1 — Keyed LazyColumn block renderers and focus coordination
+- **Current Phase:** Phase 5 — High-Value Core Enhancements
+- **Current Milestone:** Milestone 5.1 — Live Preview & Split-View Mode
+- **Active Subtask:** Subtask 5.1.1 — Architectural Design & Implementation of Markdown Preview Renderer and Split-View Layout with Synchronized Scrolling
 - **Status:** IN_PROGRESS
 
 ## Completed Milestones
@@ -18,11 +18,15 @@
 - [x] **Milestone 3.4**: Implemented domain repositories (`RoomMarkdownRepository`, `RoomSnapshotRepository`) and debounced auto-save coordinator (`AutoSaveCoordinator`) with typed error translation and background worker offloading (`Dispatchers.IO` and `limitedParallelism(2)`). Verified with `RoomMarkdownRepositoryTest`, `RoomSnapshotRepositoryTest`, and `AutoSaveCoordinatorTest`.
 - [x] **Milestone 3.5**: Configured Hilt dependency injection modules (`DataModule`, `DomainModule`) in `:app` providing persistence, parsers, and repositories. Full unit test suite (98/98 tasks) and debug APK assembly verified.
 - [x] **Milestone 4.1**: Implemented pure Clean Architecture block manipulation use cases in `:domain` (`SplitBlockUseCase`, `MergeBlockUseCase`, `UndoBlockUseCase`, `RedoBlockUseCase`, `DiffCalculator`), `EditorViewModel` with MVI contracts (`EditorUiState`, `EditorIntent`, `EditorEffect`), and verified unit tests with Turbine and MockK across `:domain` and `:presentation`.
+- [x] **Milestone 4.2**: Implemented Jetpack Compose block UI components (`MarkdownBlockItem`, `ParagraphBlockView`, `HeadingBlockView`, `CodeBlockView`, `ListItemBlockView`, `BlockQuoteView`, `ThematicBreakView`) keyed by `BlockId` in `LazyColumn`, `EditorTopBar` with Undo/Redo/Save, `EditorScreen`, and integrated with `MainActivity` via Hilt `EditorViewModelFactory`.
+- [x] **Milestone 4.3**: Verified MVP block editing pipeline, UI recomposition isolation, focus traversal on split/merge, undo/redo deltas, and debug APK assembly.
 
 ## Immediate Next Steps
-1. **Milestone 4.2**: Implement keyed Compose block items per `BlockId` (`MarkdownBlockItem`, `HeadingBlock`, `ParagraphBlock`, `CodeBlock`, etc.), focus traversal coordination, and the `EditorScreen` container.
-2. **Milestone 4.3**: Integrate `EditorScreen` with `MainActivity` in `:app`, add Compose UI integration tests (`androidx.compose.ui:ui-test-junit4`).
-3. **Milestone 4.4**: Verification of full MVP editing flow (typing, split on Enter, merge on Backspace, Undo/Redo).
+1. **Milestone 5.1**: Live Preview & Split-View mode with synchronized scroll interpolation.
+2. **Milestone 5.2**: Document Export Pipeline (HTML & PDF generation via Android print adapter with typed domain errors).
+3. **Milestone 5.3**: Syntax highlighting for fenced code blocks using regex-based tokenization.
+4. **Milestone 5.4**: Table of Contents (ToC) generation directly from AST Heading blocks with click-to-scroll navigation.
+5. **Milestone 5.5**: In-document Find & Replace across block boundaries.
 
 ## Key Architecture Decisions (ADR Log)
 | Date       | Decision                                      | Context & Rationale                                                                                                                                                                                | Status   |
@@ -42,6 +46,7 @@
 | 2026-09-11 | Myers Bidirectional Diff Undo/Redo Engine     | Unified diff patches calculated via `DiffUtils` and `UnifiedDiffUtils` in `DiffEngine` ensuring deterministic forward and reverse transitions across process death.                              | ACCEPTED |
 | 2026-09-11 | Debounced Auto-Save & Offloaded Diffing       | Designed `AutoSaveCoordinator` using coroutine job cancellation debounce on `Dispatchers.IO` and Myers diff offloading to `diffAndParsing` dispatcher.                                            | ACCEPTED |
 | 2026-09-11 | Pure Domain Block Mutation & Diff Contracts   | Implemented `SplitBlockUseCase`, `MergeBlockUseCase`, `UndoBlockUseCase`, `RedoBlockUseCase`, and `DiffCalculator` in `:domain`, completely decoupled from presentation and persistence.          | ACCEPTED |
+| 2026-09-11 | Keyed Block Recomposition & IME Split Handler | Keyed `LazyColumn` items by `BlockId.value` for isolated recomposition; implemented universal newline splitting and cursor placement for Enter and Backspace key gestures.                        | ACCEPTED |
 
 ## Technical Baseline & Chosen Versions
 - **Kotlin:** `2.4.20`
@@ -60,5 +65,5 @@
 - **SDK Constraints:** `minSdk = 26`, `targetSdk = 37`, `compileSdk = 37`
 
 ## Session Handoff Block
-- **Last Verified State:** Milestone 4.1 complete. Full unit test suite (`.\gradlew.bat test`) verified with 98/98 tasks passing across all modules with 0 errors. `EditorViewModel` reducer logic, block split/merge actions, and undo/redo delta restoration fully tested with Turbine and MockK. Full APK assembly (`.\gradlew.bat assembleDebug`) verified.
-- **Exact Resumption Command/Action:** Proceed to Milestone 4.2: Block Compose UI Components & Design System in `:presentation` (`MarkdownBlockItem`, `EditorScreen`, focus management).
+- **Last Verified State:** Phase 4 fully verified. All 96 unit test tasks passing across all 5 modules with 0 errors. Clean working tree and commit `9d16adc`. Debug APK assembly verified (`assembleDebug` succeeds).
+- **Exact Resumption Command/Action:** Execute Milestone 5.1 (Live Preview & Split-View Mode with Synchronized Scrolling).
