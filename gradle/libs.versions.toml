@@ -5,7 +5,7 @@ kotlin = "2.4.20"
 ksp = "2.3.6"
 
 # UI & Jetpack Compose
-composeBom = "2026.08.00"
+composeBom = "2026.09.00"
 activityCompose = "1.13.0"
 coreKtx = "1.19.0"
 lifecycle = "2.11.0"
@@ -16,7 +16,7 @@ material = "1.14.0"
 hilt = "2.60.1"
 
 # Persistence & Data
-room = "2.8.4"
+room = "2.8.5"
 
 # Markdown & Diff Engine
 commonmark = "0.30.0"
