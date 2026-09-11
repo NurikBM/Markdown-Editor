@@ -58,5 +58,11 @@ object DomainModule {
         diffCalculator: com.markdown.editor.domain.diff.DiffCalculator,
         parser: MarkdownBlockParser
     ): com.markdown.editor.domain.usecase.RedoBlockUseCase = com.markdown.editor.domain.usecase.RedoBlockUseCase(diffCalculator, parser)
+
+    @Provides
+    @Singleton
+    fun provideExportHtmlUseCase(
+        dispatcherProvider: DispatcherProvider
+    ): com.markdown.editor.domain.usecase.ExportHtmlUseCase = com.markdown.editor.domain.usecase.ExportHtmlUseCase(dispatcherProvider.diffAndParsing)
 }
 

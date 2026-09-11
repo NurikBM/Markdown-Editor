@@ -60,6 +60,7 @@ class EditorViewModelTest {
     private val redoBlockUseCase = RedoBlockUseCase(diffCalculator, parser)
 
     private val testDispatcher = StandardTestDispatcher()
+    private val exportHtmlUseCase = com.markdown.editor.domain.usecase.ExportHtmlUseCase(testDispatcher)
 
     private val dispatcherProvider = object : DispatcherProvider {
         override val main: CoroutineDispatcher = testDispatcher
@@ -86,7 +87,8 @@ class EditorViewModelTest {
             redoBlockUseCase = redoBlockUseCase,
             diffCalculator = diffCalculator,
             parser = parser,
-            dispatcherProvider = dispatcherProvider
+            dispatcherProvider = dispatcherProvider,
+            exportHtmlUseCase = exportHtmlUseCase
         )
     }
 
@@ -290,5 +292,70 @@ class EditorViewModelTest {
         assertTrue(state.blocks.isNotEmpty())
         assertFalse(state.isLoading)
         coVerify { markdownRepository.saveDocument(match { it.id == "missing-doc" }, any()) }
+    }
+
+    @Test
+    fun `exportDocument HTML emits ShareContent effect with html mime type`() = runTest(testDispatcher) {
+        val testDoc = MarkdownDocument(
+            id = "doc-export",
+            title = "Export Test",
+            blocks = listOf(MarkdownBlock(id = BlockId("1"), rawContent = "Hello HTML", type = BlockType.Paragraph))
+        )
+        coEvery { markdownRepository.getDocument("doc-export") } returns Result.success(testDoc)
+        viewModel.processIntent(EditorIntent.LoadDocument("doc-export"))
+        advanceUntilIdle()
+
+        viewModel.uiEffect.test {
+            viewModel.processIntent(EditorIntent.ExportDocument(com.markdown.editor.domain.model.ExportFormat.HTML))
+            val effect = awaitItem()
+            assertTrue(effect is EditorEffect.ShareContent)
+            val share = effect as EditorEffect.ShareContent
+            assertEquals("Export Test.html", share.title)
+            assertEquals("text/html", share.mimeType)
+            assertTrue(share.content.contains("Hello HTML"))
+        }
+    }
+
+    @Test
+    fun `exportDocument PDF emits PrintHtml effect`() = runTest(testDispatcher) {
+        val testDoc = MarkdownDocument(
+            id = "doc-pdf",
+            title = "PDF Test",
+            blocks = listOf(MarkdownBlock(id = BlockId("1"), rawContent = "Hello PDF", type = BlockType.Paragraph))
+        )
+        coEvery { markdownRepository.getDocument("doc-pdf") } returns Result.success(testDoc)
+        viewModel.processIntent(EditorIntent.LoadDocument("doc-pdf"))
+        advanceUntilIdle()
+
+        viewModel.uiEffect.test {
+            viewModel.processIntent(EditorIntent.ExportDocument(com.markdown.editor.domain.model.ExportFormat.PDF))
+            val effect = awaitItem()
+            assertTrue(effect is EditorEffect.PrintHtml)
+            val print = effect as EditorEffect.PrintHtml
+            assertEquals("PDF Test", print.jobName)
+            assertTrue(print.htmlContent.contains("Hello PDF"))
+        }
+    }
+
+    @Test
+    fun `exportDocument MARKDOWN emits ShareContent effect with markdown mime type`() = runTest(testDispatcher) {
+        val testDoc = MarkdownDocument(
+            id = "doc-md",
+            title = "Markdown Test",
+            blocks = listOf(MarkdownBlock(id = BlockId("1"), rawContent = "Hello MD", type = BlockType.Paragraph))
+        )
+        coEvery { markdownRepository.getDocument("doc-md") } returns Result.success(testDoc)
+        viewModel.processIntent(EditorIntent.LoadDocument("doc-md"))
+        advanceUntilIdle()
+
+        viewModel.uiEffect.test {
+            viewModel.processIntent(EditorIntent.ExportDocument(com.markdown.editor.domain.model.ExportFormat.MARKDOWN))
+            val effect = awaitItem()
+            assertTrue(effect is EditorEffect.ShareContent)
+            val share = effect as EditorEffect.ShareContent
+            assertEquals("Markdown Test.md", share.title)
+            assertEquals("text/markdown", share.mimeType)
+            assertEquals("Hello MD", share.content)
+        }
     }
 }

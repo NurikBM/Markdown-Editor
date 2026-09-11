@@ -49,6 +49,7 @@ sealed interface EditorIntent : UiIntent {
     data object Undo : EditorIntent
     data object Redo : EditorIntent
     data object SaveExplicitly : EditorIntent
+    data class ExportDocument(val format: com.markdown.editor.domain.model.ExportFormat) : EditorIntent
 }
 
 /**
@@ -58,5 +59,7 @@ sealed interface EditorEffect : UiEffect {
     data class RequestFocusOnBlock(val blockId: BlockId, val cursorPosition: Int = 0) : EditorEffect
     data class ShowToast(val message: String) : EditorEffect
     data class ShowError(val message: String) : EditorEffect
+    data class PrintHtml(val jobName: String, val htmlContent: String) : EditorEffect
+    data class ShareContent(val title: String, val content: String, val mimeType: String) : EditorEffect
 }
 

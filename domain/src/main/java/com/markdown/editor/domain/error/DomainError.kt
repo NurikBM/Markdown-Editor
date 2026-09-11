@@ -24,6 +24,12 @@ sealed interface DomainError {
         data class BlockMismatch(val blockId: String, val expectedHash: String) : PatchConflict
         data class SnapshotNotFound(val snapshotId: String) : PatchConflict
     }
+
+    sealed interface Export : DomainError {
+        data class HtmlExportFailed(val message: String, val cause: Throwable? = null) : Export
+        data class PdfExportFailed(val message: String, val cause: Throwable? = null) : Export
+        data class FileWriteFailed(val destinationPath: String, val message: String) : Export
+    }
 }
 
 class DomainException(val error: DomainError) : RuntimeException(error.toString())

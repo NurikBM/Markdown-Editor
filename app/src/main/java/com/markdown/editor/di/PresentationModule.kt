@@ -7,6 +7,7 @@ import com.markdown.editor.domain.diff.DiffCalculator
 import com.markdown.editor.domain.parser.MarkdownBlockParser
 import com.markdown.editor.domain.repository.MarkdownRepository
 import com.markdown.editor.domain.repository.SnapshotRepository
+import com.markdown.editor.domain.usecase.ExportHtmlUseCase
 import com.markdown.editor.domain.usecase.MergeBlockUseCase
 import com.markdown.editor.domain.usecase.RedoBlockUseCase
 import com.markdown.editor.domain.usecase.SplitBlockUseCase
@@ -29,7 +30,8 @@ class EditorViewModelFactory(
     private val redoBlockUseCase: RedoBlockUseCase,
     private val diffCalculator: DiffCalculator,
     private val parser: MarkdownBlockParser,
-    private val dispatcherProvider: DispatcherProvider
+    private val dispatcherProvider: DispatcherProvider,
+    private val exportHtmlUseCase: ExportHtmlUseCase
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -44,7 +46,8 @@ class EditorViewModelFactory(
                 redoBlockUseCase = redoBlockUseCase,
                 diffCalculator = diffCalculator,
                 parser = parser,
-                dispatcherProvider = dispatcherProvider
+                dispatcherProvider = dispatcherProvider,
+                exportHtmlUseCase = exportHtmlUseCase
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
@@ -65,7 +68,8 @@ object PresentationModule {
         redoBlockUseCase: RedoBlockUseCase,
         diffCalculator: DiffCalculator,
         parser: MarkdownBlockParser,
-        dispatcherProvider: DispatcherProvider
+        dispatcherProvider: DispatcherProvider,
+        exportHtmlUseCase: ExportHtmlUseCase
     ): EditorViewModelFactory = EditorViewModelFactory(
         markdownRepository = markdownRepository,
         snapshotRepository = snapshotRepository,
@@ -75,7 +79,8 @@ object PresentationModule {
         redoBlockUseCase = redoBlockUseCase,
         diffCalculator = diffCalculator,
         parser = parser,
-        dispatcherProvider = dispatcherProvider
+        dispatcherProvider = dispatcherProvider,
+        exportHtmlUseCase = exportHtmlUseCase
     )
 }
 

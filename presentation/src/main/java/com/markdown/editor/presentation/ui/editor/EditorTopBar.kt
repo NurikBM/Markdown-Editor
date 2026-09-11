@@ -10,8 +10,12 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VerticalSplit
 import androidx.compose.material.icons.filled.Visibility
 import com.markdown.editor.presentation.editor.EditorViewMode
@@ -23,6 +27,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
@@ -105,6 +113,61 @@ fun EditorTopBar(
                         imageVector = Icons.Default.Save,
                         contentDescription = "Save document",
                         tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            var showMenu by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            androidx.compose.foundation.layout.Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Export & Actions",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { androidx.compose.material3.Text("Print / Export PDF") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Print,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = {
+                            showMenu = false
+                            onIntent(EditorIntent.ExportDocument(com.markdown.editor.domain.model.ExportFormat.PDF))
+                        }
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { androidx.compose.material3.Text("Export as HTML") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Code,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = {
+                            showMenu = false
+                            onIntent(EditorIntent.ExportDocument(com.markdown.editor.domain.model.ExportFormat.HTML))
+                        }
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { androidx.compose.material3.Text("Share Markdown") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = {
+                            showMenu = false
+                            onIntent(EditorIntent.ExportDocument(com.markdown.editor.domain.model.ExportFormat.MARKDOWN))
+                        }
                     )
                 }
             }

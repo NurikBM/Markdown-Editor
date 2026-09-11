@@ -10,6 +10,8 @@ import com.markdown.editor.domain.model.MarkdownDocument
 import com.markdown.editor.domain.parser.MarkdownBlockParser
 import com.markdown.editor.domain.repository.MarkdownRepository
 import com.markdown.editor.domain.repository.SnapshotRepository
+import com.markdown.editor.domain.model.ExportFormat
+import com.markdown.editor.domain.usecase.ExportHtmlUseCase
 import com.markdown.editor.domain.usecase.MergeBlockUseCase
 import com.markdown.editor.domain.usecase.MergeResult
 import com.markdown.editor.domain.usecase.RedoBlockUseCase
@@ -33,7 +35,8 @@ class EditorViewModel(
     private val redoBlockUseCase: RedoBlockUseCase,
     private val diffCalculator: DiffCalculator,
     private val parser: MarkdownBlockParser,
-    private val dispatcherProvider: DispatcherProvider
+    private val dispatcherProvider: DispatcherProvider,
+    private val exportHtmlUseCase: ExportHtmlUseCase
 ) : MviViewModel<EditorUiState, EditorIntent, EditorEffect>(EditorUiState()) {
 
     private val undoStack = ArrayDeque<DocumentSnapshot>()
@@ -48,6 +51,7 @@ class EditorViewModel(
             is EditorIntent.RequestFocus -> requestFocus(intent.blockId, intent.cursorPosition)
             is EditorIntent.ChangeTitle -> changeTitle(intent.newTitle)
             is EditorIntent.SetViewMode -> setViewMode(intent.mode)
+            is EditorIntent.ExportDocument -> exportDocument(intent.format)
             EditorIntent.TogglePreview -> togglePreview()
             EditorIntent.Undo -> performUndo()
             EditorIntent.Redo -> performRedo()
@@ -77,10 +81,13 @@ class EditorViewModel(
                 markdownRepository.getDocument(documentId)
             }
             result.onSuccess { doc ->
-                val blocks = if (doc.blocks.isEmpty()) {
-                    listOf(withContext(dispatcherProvider.diffAndParsing) { parser.parseBlock("", BlockId()) })
-                } else {
-                    doc.blocks
+                val blocks = doc.blocks.ifEmpty {
+                    listOf(withContext(dispatcherProvider.diffAndParsing) {
+                        parser.parseBlock(
+                            "",
+                            BlockId()
+                        )
+                    })
                 }
                 undoStack.clear()
                 redoStack.clear()
@@ -320,6 +327,54 @@ class EditorViewModel(
                 sendEffect(EditorEffect.ShowToast("Document saved successfully"))
             } else {
                 sendEffect(EditorEffect.ShowError("Failed to save document"))
+            }
+        }
+    }
+
+    private fun exportDocument(format: ExportFormat) {
+        viewModelScope.launch {
+            val doc = currentDocument()
+            val state = uiState.value
+
+            when (format) {
+                ExportFormat.HTML -> {
+                    exportHtmlUseCase.execute(doc, standalone = true)
+                        .onSuccess { html ->
+                            sendEffect(
+                                EditorEffect.ShareContent(
+                                    title = "${state.title}.html",
+                                    content = html,
+                                    mimeType = "text/html"
+                                )
+                            )
+                        }
+                        .onFailure { error ->
+                            sendEffect(EditorEffect.ShowError(error.message ?: "Failed to export HTML"))
+                        }
+                }
+                ExportFormat.PDF -> {
+                    exportHtmlUseCase.execute(doc, standalone = true)
+                        .onSuccess { html ->
+                            sendEffect(
+                                EditorEffect.PrintHtml(
+                                    jobName = state.title,
+                                    htmlContent = html
+                                )
+                            )
+                        }
+                        .onFailure { error ->
+                            sendEffect(EditorEffect.ShowError(error.message ?: "Failed to generate PDF"))
+                        }
+                }
+                ExportFormat.MARKDOWN -> {
+                    sendEffect(
+                        EditorEffect.ShareContent(
+                            title = "${state.title}.md",
+                            content = doc.rawContent,
+                            mimeType = "text/markdown"
+                        )
+                    )
+                }
             }
         }
     }

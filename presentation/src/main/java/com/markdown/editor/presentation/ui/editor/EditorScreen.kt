@@ -56,6 +56,8 @@ fun EditorScreen(
         enabled = state.viewMode == EditorViewMode.SPLIT_VIEW
     )
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     LaunchedEffect(effects) {
         effects.collect { effect ->
             when (effect) {
@@ -67,6 +69,24 @@ fun EditorScreen(
                 }
                 is EditorEffect.RequestFocusOnBlock -> {
                     // Handled reactively via state.focusedBlockId
+                }
+                is EditorEffect.PrintHtml -> {
+                    com.markdown.editor.presentation.export.AndroidExportHelper.printHtml(
+                        context = context,
+                        jobName = effect.jobName,
+                        htmlContent = effect.htmlContent,
+                        onError = { error ->
+                            // Display error via snackbar
+                        }
+                    )
+                }
+                is EditorEffect.ShareContent -> {
+                    com.markdown.editor.presentation.export.AndroidExportHelper.shareText(
+                        context = context,
+                        title = effect.title,
+                        content = effect.content,
+                        mimeType = effect.mimeType
+                    )
                 }
             }
         }
