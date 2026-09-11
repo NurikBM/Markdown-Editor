@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,7 +33,9 @@ import com.markdown.editor.presentation.editor.EditorUiState
 import com.markdown.editor.presentation.editor.EditorViewMode
 import com.markdown.editor.presentation.ui.block.MarkdownBlockItem
 import com.markdown.editor.presentation.ui.preview.MarkdownPreviewPane
+import com.markdown.editor.presentation.ui.search.FindReplaceBar
 import com.markdown.editor.presentation.ui.sync.rememberSynchronizedScroll
+import com.markdown.editor.presentation.ui.toc.TableOfContentsSheet
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -70,6 +73,10 @@ fun EditorScreen(
                 is EditorEffect.RequestFocusOnBlock -> {
                     // Handled reactively via state.focusedBlockId
                 }
+                is EditorEffect.ScrollToBlock -> {
+                    editorListState.animateScrollToItem(effect.blockIndex)
+                    previewListState.animateScrollToItem(effect.blockIndex)
+                }
                 is EditorEffect.PrintHtml -> {
                     com.markdown.editor.presentation.export.AndroidExportHelper.printHtml(
                         context = context,
@@ -102,71 +109,95 @@ fun EditorScreen(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         modifier = modifier.imePadding()
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (state.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else {
-                when (state.viewMode) {
-                    EditorViewMode.EDITOR_ONLY -> {
-                        EditorPane(
-                            blocks = state.blocks,
-                            focusedBlockId = state.focusedBlockId,
-                            cursorPosition = state.cursorPosition,
-                            onIntent = onIntent,
-                            listState = editorListState
-                        )
-                    }
-                    EditorViewMode.PREVIEW_ONLY -> {
-                        MarkdownPreviewPane(
-                            blocks = state.blocks,
-                            listState = previewListState
-                        )
-                    }
-                    EditorViewMode.SPLIT_VIEW -> {
-                        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                            if (maxWidth >= 600.dp) {
-                                Row(modifier = Modifier.fillMaxSize()) {
-                                    EditorPane(
-                                        blocks = state.blocks,
-                                        focusedBlockId = state.focusedBlockId,
-                                        cursorPosition = state.cursorPosition,
-                                        onIntent = onIntent,
-                                        listState = editorListState,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    VerticalDivider(
-                                        color = MaterialTheme.colorScheme.outlineVariant,
-                                        thickness = 1.dp
-                                    )
-                                    MarkdownPreviewPane(
-                                        blocks = state.blocks,
-                                        listState = previewListState,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            } else {
-                                Column(modifier = Modifier.fillMaxSize()) {
-                                    EditorPane(
-                                        blocks = state.blocks,
-                                        focusedBlockId = state.focusedBlockId,
-                                        cursorPosition = state.cursorPosition,
-                                        onIntent = onIntent,
-                                        listState = editorListState,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    HorizontalDivider(
-                                        color = MaterialTheme.colorScheme.outlineVariant,
-                                        thickness = 1.dp
-                                    )
-                                    MarkdownPreviewPane(
-                                        blocks = state.blocks,
-                                        listState = previewListState,
-                                        modifier = Modifier.weight(1f)
-                                    )
+            if (state.isFindReplaceVisible) {
+                FindReplaceBar(
+                    searchQuery = state.searchQuery,
+                    replaceQuery = state.replaceQuery,
+                    currentMatchIndex = state.currentMatchIndex,
+                    totalMatches = state.findMatches.size,
+                    isCaseSensitive = state.isCaseSensitive,
+                    onSearchQueryChange = { q -> onIntent(EditorIntent.SetSearchQuery(q)) },
+                    onReplaceQueryChange = { q -> onIntent(EditorIntent.SetReplaceQuery(q)) },
+                    onNextMatch = { onIntent(EditorIntent.FindNextMatch) },
+                    onPreviousMatch = { onIntent(EditorIntent.FindPreviousMatch) },
+                    onToggleCaseSensitive = { cs -> onIntent(EditorIntent.SetCaseSensitive(cs)) },
+                    onReplace = { onIntent(EditorIntent.ReplaceCurrentMatch) },
+                    onReplaceAll = { onIntent(EditorIntent.ReplaceAllMatches) },
+                    onClose = { onIntent(EditorIntent.ToggleFindReplace(visible = false)) }
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                if (state.isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else {
+                    when (state.viewMode) {
+                        EditorViewMode.EDITOR_ONLY -> {
+                            EditorPane(
+                                blocks = state.blocks,
+                                focusedBlockId = state.focusedBlockId,
+                                cursorPosition = state.cursorPosition,
+                                onIntent = onIntent,
+                                listState = editorListState
+                            )
+                        }
+                        EditorViewMode.PREVIEW_ONLY -> {
+                            MarkdownPreviewPane(
+                                blocks = state.blocks,
+                                listState = previewListState
+                            )
+                        }
+                        EditorViewMode.SPLIT_VIEW -> {
+                            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                if (maxWidth >= 600.dp) {
+                                    Row(modifier = Modifier.fillMaxSize()) {
+                                        EditorPane(
+                                            blocks = state.blocks,
+                                            focusedBlockId = state.focusedBlockId,
+                                            cursorPosition = state.cursorPosition,
+                                            onIntent = onIntent,
+                                            listState = editorListState,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        VerticalDivider(
+                                            color = MaterialTheme.colorScheme.outlineVariant,
+                                            thickness = 1.dp
+                                        )
+                                        MarkdownPreviewPane(
+                                            blocks = state.blocks,
+                                            listState = previewListState,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                } else {
+                                    Column(modifier = Modifier.fillMaxSize()) {
+                                        EditorPane(
+                                            blocks = state.blocks,
+                                            focusedBlockId = state.focusedBlockId,
+                                            cursorPosition = state.cursorPosition,
+                                            onIntent = onIntent,
+                                            listState = editorListState,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        HorizontalDivider(
+                                            color = MaterialTheme.colorScheme.outlineVariant,
+                                            thickness = 1.dp
+                                        )
+                                        MarkdownPreviewPane(
+                                            blocks = state.blocks,
+                                            listState = previewListState,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -174,6 +205,14 @@ fun EditorScreen(
                 }
             }
         }
+    }
+
+    if (state.isTableOfContentsVisible) {
+        TableOfContentsSheet(
+            items = state.tableOfContents,
+            onItemClick = { item -> onIntent(EditorIntent.NavigateToHeading(item)) },
+            onDismiss = { onIntent(EditorIntent.ToggleTableOfContents(visible = false)) }
+        )
     }
 }
 

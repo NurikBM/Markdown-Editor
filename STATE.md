@@ -6,7 +6,15 @@
 - **Active Subtask:** Subtask 5.2.2 — Git history consolidation and verification
 - **Current Milestone:** Milestone 5.3 — Fenced Code Block Syntax Highlighting [COMPLETED]
 - **Active Subtask:** Subtask 5.3.1 — Syntax highlighting engine & Compose integration
+- **Current Milestone:** Milestone 5.4 — Table of Contents (ToC) [COMPLETED] / Milestone 5.5 — In-document Find & Replace
+- **Active Subtask:** Subtask 5.5.1 — In-editor Find & Replace domain models and MVI contracts
 - **Status:** READY
+- **Current Milestone:** Milestone 5.4 — Table of Contents (ToC) [COMPLETED] & Milestone 5.5 — In-document Find & Replace [COMPLETED]
+- **Active Subtask:** Awaiting User Approval / Command for Commit 11 (`feat(presentation): implement document navigation suite with table of contents and in-editor find and replace`)
+- **Status:** VERIFIED
+- **Current Milestone:** Milestone 5.6 — Markdown Quick Formatting Toolbar & Smart Input
+- **Active Subtask:** Subtask 5.6.1 — Accessory toolbar, smart block continuation, and portrait TopBar adaptivity
+- **Status:** IN_PROGRESS
 
 ## Completed Milestones
 - [x] **Milestone 1.1**: Bootstrap multi-module architecture (`:core`, `:domain`, `:data`, `:presentation`, `:app`) with verified Gradle sync and compilation across all layers. Created `AGENTS.md`, `STATE.md`, and version catalog `gradle/libs.versions.toml`.
@@ -25,6 +33,11 @@
 - [x] **Milestone 5.1**: Implemented rich Markdown live preview renderer (`MarkdownPreviewBlockItem`, `MarkdownPreviewPane`), split-view container with adaptive responsive layouts (side-by-side on wide screens, stacked on compact screens), bidirectional synchronized scrolling coordinator (`rememberSynchronizedScroll`), and mode switcher in `EditorTopBar` and `EditorViewModel`. Verified unit tests and debug APK assembly.
 - [x] **Milestone 5.2**: Implemented Document Export Pipeline (`ExportHtmlUseCase` using `commonmark-java` `HtmlRenderer` with standalone responsive CSS and print media stylesheet, `ExportFormat` enum, `DomainError.Export` typed domain error domain, `AndroidExportHelper` utilizing Android `PrintManager` and `WebView.createPrintDocumentAdapter` for native PDF export/printing, `Intent.ACTION_SEND` share sheet integration, and dropdown menu in `EditorTopBar`). Verified with `ExportHtmlUseCaseTest`, updated `EditorViewModelTest`, full unit test suite (96/96 tasks passing), and debug APK assembly.
 - [x] **Milestone 5.3**: Implemented Fenced Code Block Syntax Highlighting (`CodeSyntaxTokenizer`, `RegexCodeSyntaxTokenizer` in `:domain` with prioritized lexical scanning for Kotlin, Java, Python, JS/TS, JSON, SQL, XML, Markdown; `CodeSyntaxHighlighter` and `CodeSyntaxVisualTransformation` in `:presentation` with dark/light theme aware palette; integrated into `CodeBlockView` and `PreviewCodeBlock`; provided in `DomainModule`). Verified with `RegexCodeSyntaxTokenizerTest`, `CodeSyntaxHighlighterTest`, full unit test suite, and debug APK assembly.
+- [x] **Milestone 5.4**: Implemented Table of Contents (ToC) generation directly from AST Heading blocks with click-to-scroll navigation (`GenerateTableOfContentsUseCase`, `TableOfContentsItem` in `:domain`; `TableOfContentsSheet` Material 3 `ModalBottomSheet` with hierarchical indentation and H1-H6 badges, `EditorTopBar` navigation button, and `EditorEffect.ScrollToBlock` animated scroll in `:presentation`; provided in `DomainModule` and `PresentationModule`). Verified with `GenerateTableOfContentsUseCaseTest`, updated `EditorViewModelTest`, full unit test suite (100% passing across all modules), and debug APK assembly. *(Commit deferred: bundled with Milestone 5.5 into Commit 11 per user instruction)*.
+- [x] **Milestone 5.4**: Implemented Table of Contents (ToC) generation directly from AST Heading blocks with click-to-scroll navigation (`GenerateTableOfContentsUseCase`, `TableOfContentsItem` in `:domain`; `TableOfContentsSheet` Material 3 `ModalBottomSheet` with hierarchical indentation and H1-H6 badges, `EditorTopBar` navigation button, and `EditorEffect.ScrollToBlock` animated scroll in `:presentation`; provided in `DomainModule` and `PresentationModule`). Verified with `GenerateTableOfContentsUseCaseTest`, updated `EditorViewModelTest`, full unit test suite, and debug APK assembly.
+- [x] **Milestone 5.5**: Implemented In-Document Find & Replace across block boundaries (`FindMatch`, `FindInDocumentUseCase`, `ReplaceInDocumentUseCase` in `:domain`; `FindReplaceBar` with search/replace fields, match counter, next/previous match cycling, case-sensitive toggle, single replace with Myers diff undo snapshot, and bulk replace all in `:presentation`; full unit tests in `:domain` and `:presentation`). Input bugfixes resolved (cursor jump eliminated via unkeyed rawContent `remember` + unified `BasicTextField` preventing keyboard dismissals on `#` heading changes).
+- [x] **Beta-test & Bugfix**: Fixed cursor jump to 0 on keystrokes and keyboard dismissal on `#` markdown heading conversions by uncoupling `TextFieldValue` state recreation from `rawContent` and unifying all block types into a single, permanent `BasicTextField` with dynamic styling.
+- [x] **Milestone 5.4 & 5.5**: Implemented Table of Contents (ToC) generation directly from AST Heading blocks with click-to-scroll navigation and In-Document Find & Replace across block boundaries (`GenerateTableOfContentsUseCase`, `TableOfContentsSheet`, `FindMatch`, `FindInDocumentUseCase`, `ReplaceInDocumentUseCase`, `FindReplaceBar`, cyclical match navigation, single/all replace with Myers diff undo snapshots). Input bugfixes resolved (cursor jump eliminated + unified `BasicTextField` preventing keyboard dismissals on `#` conversions). (Commit: `82cb931`).
 
 ## Immediate Next Steps
 1. **Milestone 5.3**: Syntax highlighting for fenced code blocks using regex-based tokenization (Kotlin, Java, Python, JavaScript, JSON, Markdown).
@@ -33,7 +46,22 @@
 4. **Milestone 5.6**: Markdown Quick Formatting Toolbar (soft keyboard accessory bar).
 1. **Milestone 5.4**: Table of Contents (ToC) generation directly from AST Heading blocks with click-to-scroll navigation.
 2. **Milestone 5.5**: In-document Find & Replace across block boundaries.
+1. **Milestone 5.5**: In-document Find & Replace across block boundaries.
+2. **Commit 11**: `feat(presentation): implement document navigation suite with table of contents and in-editor find and replace` (Bundle Milestone 5.4 + 5.5).
 3. **Milestone 5.6**: Markdown Quick Formatting Toolbar (soft keyboard accessory bar).
+4. **Milestone 6.1**: Material 3 Dynamic Theming (Light / Dark / AMOLED black).
+5. **Commit 12**: `feat(presentation): implement markdown accessory toolbar and material 3 dynamic theming` (Bundle Milestone 5.6 + 6.1).
+1. **Commit 11 (Awaiting User Command)**: `feat(presentation): implement document navigation suite with table of contents and in-editor find and replace` (Bundles Milestone 5.4 + Milestone 5.5).
+2. **Milestone 5.6**: Markdown Quick Formatting Toolbar (soft keyboard accessory bar for bold, italic, headings, lists, quotes, code).
+3. **Milestone 6.1**: Material 3 Dynamic Theming (Light / Dark / AMOLED black).
+4. **Commit 12**: `feat(presentation): implement markdown accessory toolbar and material 3 dynamic theming` (Bundle Milestone 5.6 + 6.1).
+1. **Milestone 5.6**: Markdown Quick Formatting Toolbar & Smart Input:
+   - Soft keyboard accessory bar for quick formatting (bold `**`, italic `*`, headings `#`, blockquote `>`, code ````, lists `-` / `1.`).
+   - Smart multiline code block handling on Enter (preserve newline without splitting block).
+   - Smart list and blockquote continuation on Enter with exit-on-empty rule.
+   - Adaptive portrait TopBar (collapse less frequent actions into `MoreVert` so title has ample room on narrow screens).
+2. **Milestone 6.1**: Material 3 Dynamic Theming (Light / Dark / AMOLED black).
+3. **Commit 12**: `feat(presentation): implement markdown accessory toolbar and material 3 dynamic theming` (Bundle Milestone 5.6 + 6.1).
 
 ## Key Architecture Decisions (ADR Log)
 | Date       | Decision                                      | Context & Rationale                                                                                                                                                                                | Status   |
@@ -57,6 +85,9 @@
 | 2026-09-11 | Live Preview & Bidirectional Scroll Sync      | Built isolated MarkdownPreviewBlockItem interpreting domain InlineSpan and BlockType; implemented loop-free bidirectional LazyColumn scroll synchronization via LazyListState.isScrollInProgress. | ACCEPTED |
 | 2026-09-11 | Android Print Framework & Standalone HTML Export | Designed `ExportHtmlUseCase` in pure Kotlin domain generating semantic HTML with embedded responsive CSS & print stylesheet. Coupled with Android's native `PrintManager` and `WebView.createPrintDocumentAdapter` for PDF export, ensuring OS-level pagination and zero external C++/PDF library bloat. | ACCEPTED |
 | 2026-09-11 | Regex Lexical Syntax Highlighting Engine      | Implemented pure Kotlin regex tokenizer in `:domain` with conflict-avoidance and Compose `VisualTransformation` in `:presentation`. Avoids heavyweight external grammar dependencies while guaranteeing 60/120 FPS performance and 1:1 character offset mapping without mutating underlying strings. | ACCEPTED |
+| 2026-09-11 | AST-Derived ToC & M3 BottomSheet Navigation   | Designed pure domain `GenerateTableOfContentsUseCase` filtering `BlockType.Heading` with 1:1 block index preservation. Integrated Material 3 `ModalBottomSheet` in presentation with `LazyListState.animateScrollToItem` for smooth synchronized scrolling across Editor and Preview without DOM overhead. | ACCEPTED |
+| 2026-09-11 | Unified BasicTextField & Keystroke Stability  | Eliminated cursor jumping to index 0 by keying `remember` on `block.id` without `rawContent`, reconciling external text changes strictly via `LaunchedEffect(block.rawContent)`. Resolved keyboard drops on typing `#` heading indicators by unifying previously fragmented `BasicTextField` instances into a single, permanent `BasicTextField` with dynamic `TextStyle` and `decorationBox`. | ACCEPTED |
+| 2026-09-11 | Multi-Block Find & Replace with Myers Diffs   | Implemented pure domain `FindInDocumentUseCase` and `ReplaceInDocumentUseCase` with exact block offsets. Integrated `FindReplaceBar` with case-sensitive toggle, live match count, cyclical navigation with animated scroll/focus traversal, and single/bulk replace generating Myers diff snapshots for deterministic undo/redo. | ACCEPTED |
 
 ## Technical Baseline & Chosen Versions
 - **Kotlin:** `2.4.20`
@@ -79,3 +110,7 @@
 - **Exact Resumption Command/Action:** Verify and finalize clean-history branch, then proceed to Milestone 5.3: Syntax highlighting for fenced code blocks using regex-based tokenization.
 - **Last Verified State:** Milestone 5.3 complete and verified. Full unit test suite (`testDebugUnitTest` and `:domain:test`) passing with 100% success across all 5 modules (100+ tests). Full APK assembly (`assembleDebug`) verified. Real-time syntax highlighting in editor and preview pane fully operational for Kotlin, Java, Python, JS/TS, JSON, SQL, XML, and Markdown.
 - **Exact Resumption Command/Action:** Proceed to Milestone 5.4: Table of Contents (ToC) generation directly from AST Heading blocks with click-to-scroll navigation.
+- **Last Verified State:** Milestone 5.4 complete and verified. Full unit test suite (`testDebugUnitTest` and `:domain:test`) passing with 100% success across all 5 modules (100+ tests). Full APK assembly (`assembleDebug`) verified. Hierarchical Table of Contents with click-to-scroll navigation fully functional. Git working tree clean of uncommitted changes except working changes prepared for Commit 11 (deferred per user instruction).
+- **Exact Resumption Command/Action:** Proceed to Milestone 5.5: In-document Find & Replace across block boundaries. Upon completion of 5.5, request user command to create unified Commit 11.
+- **Last Verified State:** Milestones 5.4 (Table of Contents) and 5.5 (In-document Find & Replace) along with critical IME/cursor input bugfixes are fully implemented and verified. Full test suite (100% passing across `:domain`, `:core`, `:data`, `:presentation`, and `:app`) and debug APK assembly (`assembleDebug`) completed cleanly with zero warnings or errors. Working tree dirty and staged for unified Commit 11 per user instruction.
+- **Exact Resumption Command/Action:** Prompt the user for approval to commit unified Commit 11: `feat(presentation): implement document navigation suite with table of contents and in-editor find and replace`. Once committed, proceed to Milestone 5.6 (Markdown Quick Formatting Toolbar) and Milestone 6.1 (Material 3 Dynamic Theming).

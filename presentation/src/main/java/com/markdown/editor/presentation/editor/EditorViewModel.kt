@@ -11,10 +11,15 @@ import com.markdown.editor.domain.parser.MarkdownBlockParser
 import com.markdown.editor.domain.repository.MarkdownRepository
 import com.markdown.editor.domain.repository.SnapshotRepository
 import com.markdown.editor.domain.model.ExportFormat
+import com.markdown.editor.domain.model.FindMatch
+import com.markdown.editor.domain.model.TableOfContentsItem
 import com.markdown.editor.domain.usecase.ExportHtmlUseCase
+import com.markdown.editor.domain.usecase.FindInDocumentUseCase
+import com.markdown.editor.domain.usecase.GenerateTableOfContentsUseCase
 import com.markdown.editor.domain.usecase.MergeBlockUseCase
 import com.markdown.editor.domain.usecase.MergeResult
 import com.markdown.editor.domain.usecase.RedoBlockUseCase
+import com.markdown.editor.domain.usecase.ReplaceInDocumentUseCase
 import com.markdown.editor.domain.usecase.SplitBlockUseCase
 import com.markdown.editor.domain.usecase.SplitResult
 import com.markdown.editor.domain.usecase.UndoBlockUseCase
@@ -24,7 +29,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Production MVI ViewModel managing block-based document state, split/merge keystrokes,
- * and deterministic undo/redo history.
+ * deterministic undo/redo history, and in-editor navigation and search.
  */
 class EditorViewModel(
     private val markdownRepository: MarkdownRepository,
@@ -36,7 +41,10 @@ class EditorViewModel(
     private val diffCalculator: DiffCalculator,
     private val parser: MarkdownBlockParser,
     private val dispatcherProvider: DispatcherProvider,
-    private val exportHtmlUseCase: ExportHtmlUseCase
+    private val exportHtmlUseCase: ExportHtmlUseCase,
+    private val generateTableOfContentsUseCase: GenerateTableOfContentsUseCase = GenerateTableOfContentsUseCase(),
+    private val findInDocumentUseCase: FindInDocumentUseCase = FindInDocumentUseCase(),
+    private val replaceInDocumentUseCase: ReplaceInDocumentUseCase = ReplaceInDocumentUseCase(parser)
 ) : MviViewModel<EditorUiState, EditorIntent, EditorEffect>(EditorUiState()) {
 
     private val undoStack = ArrayDeque<DocumentSnapshot>()
@@ -52,6 +60,16 @@ class EditorViewModel(
             is EditorIntent.ChangeTitle -> changeTitle(intent.newTitle)
             is EditorIntent.SetViewMode -> setViewMode(intent.mode)
             is EditorIntent.ExportDocument -> exportDocument(intent.format)
+            is EditorIntent.ToggleTableOfContents -> toggleTableOfContents(intent.visible)
+            is EditorIntent.NavigateToHeading -> navigateToHeading(intent.item)
+            is EditorIntent.ToggleFindReplace -> toggleFindReplace(intent.visible)
+            is EditorIntent.SetSearchQuery -> setSearchQuery(intent.query)
+            is EditorIntent.SetReplaceQuery -> setReplaceQuery(intent.query)
+            is EditorIntent.SetCaseSensitive -> setCaseSensitive(intent.caseSensitive)
+            EditorIntent.FindNextMatch -> findNextMatch()
+            EditorIntent.FindPreviousMatch -> findPreviousMatch()
+            EditorIntent.ReplaceCurrentMatch -> replaceCurrentMatch()
+            EditorIntent.ReplaceAllMatches -> replaceAllMatches()
             EditorIntent.TogglePreview -> togglePreview()
             EditorIntent.Undo -> performUndo()
             EditorIntent.Redo -> performRedo()
@@ -74,6 +92,221 @@ class EditorViewModel(
         }
     }
 
+    private fun toggleTableOfContents(visible: Boolean?) {
+        updateState { copy(isTableOfContentsVisible = visible ?: !isTableOfContentsVisible) }
+    }
+
+    private fun navigateToHeading(item: TableOfContentsItem) {
+        updateState {
+            copy(
+                isTableOfContentsVisible = false,
+                focusedBlockId = item.blockId,
+                cursorPosition = 0
+            )
+        }
+        sendEffect(EditorEffect.ScrollToBlock(blockIndex = item.blockIndex, blockId = item.blockId))
+        sendEffect(EditorEffect.RequestFocusOnBlock(item.blockId, 0))
+    }
+
+    private fun toggleFindReplace(visible: Boolean?) {
+        val nextVisible = visible ?: !uiState.value.isFindReplaceVisible
+        val matches = if (nextVisible && uiState.value.searchQuery.isNotEmpty()) {
+            findInDocumentUseCase(uiState.value.blocks, uiState.value.searchQuery, uiState.value.isCaseSensitive)
+        } else {
+            emptyList()
+        }
+        val matchIndex = if (matches.isNotEmpty()) 0 else -1
+
+        updateState {
+            copy(
+                isFindReplaceVisible = nextVisible,
+                searchQuery = if (!nextVisible) "" else searchQuery,
+                replaceQuery = if (!nextVisible) "" else replaceQuery,
+                findMatches = matches,
+                currentMatchIndex = matchIndex
+            )
+        }
+
+        if (nextVisible && matches.isNotEmpty()) {
+            val first = matches[0]
+            sendEffect(EditorEffect.ScrollToBlock(first.blockIndex, first.blockId))
+            sendEffect(EditorEffect.RequestFocusOnBlock(first.blockId, first.startIndex))
+        }
+    }
+
+    private fun setSearchQuery(query: String) {
+        val matches = if (query.isNotEmpty()) {
+            findInDocumentUseCase(uiState.value.blocks, query, uiState.value.isCaseSensitive)
+        } else {
+            emptyList()
+        }
+        val matchIndex = if (matches.isNotEmpty()) 0 else -1
+
+        updateState {
+            copy(
+                searchQuery = query,
+                findMatches = matches,
+                currentMatchIndex = matchIndex
+            )
+        }
+
+        if (matches.isNotEmpty()) {
+            val first = matches[0]
+            sendEffect(EditorEffect.ScrollToBlock(first.blockIndex, first.blockId))
+            sendEffect(EditorEffect.RequestFocusOnBlock(first.blockId, first.startIndex))
+        }
+    }
+
+    private fun setReplaceQuery(query: String) {
+        updateState { copy(replaceQuery = query) }
+    }
+
+    private fun setCaseSensitive(caseSensitive: Boolean) {
+        val matches = if (uiState.value.searchQuery.isNotEmpty()) {
+            findInDocumentUseCase(uiState.value.blocks, uiState.value.searchQuery, caseSensitive)
+        } else {
+            emptyList()
+        }
+        val matchIndex = if (matches.isNotEmpty()) 0 else -1
+
+        updateState {
+            copy(
+                isCaseSensitive = caseSensitive,
+                findMatches = matches,
+                currentMatchIndex = matchIndex
+            )
+        }
+    }
+
+    private fun findNextMatch() {
+        val state = uiState.value
+        if (state.findMatches.isEmpty()) return
+
+        val nextIndex = (state.currentMatchIndex + 1) % state.findMatches.size
+        updateState { copy(currentMatchIndex = nextIndex) }
+
+        val match = state.findMatches[nextIndex]
+        sendEffect(EditorEffect.ScrollToBlock(match.blockIndex, match.blockId))
+        sendEffect(EditorEffect.RequestFocusOnBlock(match.blockId, match.startIndex))
+    }
+
+    private fun findPreviousMatch() {
+        val state = uiState.value
+        if (state.findMatches.isEmpty()) return
+
+        val prevIndex = if (state.currentMatchIndex - 1 < 0) {
+            state.findMatches.size - 1
+        } else {
+            state.currentMatchIndex - 1
+        }
+        updateState { copy(currentMatchIndex = prevIndex) }
+
+        val match = state.findMatches[prevIndex]
+        sendEffect(EditorEffect.ScrollToBlock(match.blockIndex, match.blockId))
+        sendEffect(EditorEffect.RequestFocusOnBlock(match.blockId, match.startIndex))
+    }
+
+    private fun replaceCurrentMatch() {
+        val state = uiState.value
+        if (state.currentMatchIndex !in state.findMatches.indices) return
+
+        val match = state.findMatches[state.currentMatchIndex]
+        val currentDoc = currentDocument()
+
+        viewModelScope.launch {
+            val oldBlock = currentDoc.blocks[match.blockIndex]
+            val updatedDoc = withContext(dispatcherProvider.diffAndParsing) {
+                replaceInDocumentUseCase.replaceSingle(currentDoc, match, state.replaceQuery)
+            }
+            val newBlock = updatedDoc.blocks[match.blockIndex]
+
+            // Record undo snapshot
+            val diffResult = withContext(dispatcherProvider.diffAndParsing) {
+                diffCalculator.computeDiff(oldBlock.rawContent, newBlock.rawContent)
+            }
+            if (diffResult.hasChanges) {
+                val snapshot = DocumentSnapshot(
+                    documentId = currentDoc.id,
+                    blockId = match.blockId,
+                    forwardDiff = diffResult.forwardDiff,
+                    reverseDiff = diffResult.reverseDiff
+                )
+                undoStack.addLast(snapshot)
+                redoStack.clear()
+                withContext(dispatcherProvider.io) {
+                    snapshotRepository.recordSnapshot(snapshot)
+                }
+            }
+
+            val newMatches = withContext(dispatcherProvider.diffAndParsing) {
+                findInDocumentUseCase(updatedDoc.blocks, state.searchQuery, state.isCaseSensitive)
+            }
+            val newToc = withContext(dispatcherProvider.diffAndParsing) {
+                generateTableOfContentsUseCase(updatedDoc.blocks)
+            }
+            val nextMatchIndex = if (newMatches.isNotEmpty()) {
+                state.currentMatchIndex.coerceIn(0, newMatches.size - 1)
+            } else {
+                -1
+            }
+
+            updateState {
+                copy(
+                    blocks = updatedDoc.blocks,
+                    findMatches = newMatches,
+                    currentMatchIndex = nextMatchIndex,
+                    tableOfContents = newToc,
+                    canUndo = undoStack.isNotEmpty(),
+                    canRedo = redoStack.isNotEmpty()
+                )
+            }
+            persistCurrentDocument()
+
+            if (nextMatchIndex in newMatches.indices) {
+                val nextMatch = newMatches[nextMatchIndex]
+                sendEffect(EditorEffect.ScrollToBlock(nextMatch.blockIndex, nextMatch.blockId))
+                sendEffect(EditorEffect.RequestFocusOnBlock(nextMatch.blockId, nextMatch.startIndex))
+            }
+        }
+    }
+
+    private fun replaceAllMatches() {
+        val state = uiState.value
+        if (state.findMatches.isEmpty() || state.searchQuery.isEmpty()) return
+
+        val currentDoc = currentDocument()
+
+        viewModelScope.launch {
+            val updatedDoc = withContext(dispatcherProvider.diffAndParsing) {
+                replaceInDocumentUseCase.replaceAll(
+                    document = currentDoc,
+                    query = state.searchQuery,
+                    replacement = state.replaceQuery,
+                    isCaseSensitive = state.isCaseSensitive
+                )
+            }
+
+            // Recompute matches and TOC
+            val newMatches = withContext(dispatcherProvider.diffAndParsing) {
+                findInDocumentUseCase(updatedDoc.blocks, state.searchQuery, state.isCaseSensitive)
+            }
+            val newToc = withContext(dispatcherProvider.diffAndParsing) {
+                generateTableOfContentsUseCase(updatedDoc.blocks)
+            }
+
+            updateState {
+                copy(
+                    blocks = updatedDoc.blocks,
+                    findMatches = newMatches,
+                    currentMatchIndex = if (newMatches.isNotEmpty()) 0 else -1,
+                    tableOfContents = newToc
+                )
+            }
+            persistCurrentDocument()
+            sendEffect(EditorEffect.ShowToast("Replaced all occurrences"))
+        }
+    }
+
     private fun loadDocument(documentId: String) {
         viewModelScope.launch {
             updateState { copy(isLoading = true, errorMessage = null) }
@@ -89,6 +322,7 @@ class EditorViewModel(
                         )
                     })
                 }
+                val toc = generateTableOfContentsUseCase(blocks)
                 undoStack.clear()
                 redoStack.clear()
                 updateState {
@@ -96,6 +330,7 @@ class EditorViewModel(
                         documentId = doc.id,
                         title = doc.title,
                         blocks = blocks,
+                        tableOfContents = toc,
                         isLoading = false,
                         canUndo = false,
                         canRedo = false,
@@ -108,6 +343,7 @@ class EditorViewModel(
                 withContext(dispatcherProvider.io) {
                     markdownRepository.saveDocument(defaultDoc)
                 }
+                val toc = generateTableOfContentsUseCase(defaultDoc.blocks)
                 undoStack.clear()
                 redoStack.clear()
                 updateState {
@@ -115,6 +351,7 @@ class EditorViewModel(
                         documentId = defaultDoc.id,
                         title = defaultDoc.title,
                         blocks = defaultDoc.blocks,
+                        tableOfContents = toc,
                         isLoading = false,
                         canUndo = false,
                         canRedo = false,
@@ -195,9 +432,11 @@ class EditorViewModel(
                 set(blockIndex, updatedBlock)
             }
 
+            val toc = generateTableOfContentsUseCase(updatedBlocks)
             updateState {
                 copy(
                     blocks = updatedBlocks,
+                    tableOfContents = toc,
                     canUndo = undoStack.isNotEmpty(),
                     canRedo = redoStack.isNotEmpty()
                 )
@@ -215,9 +454,11 @@ class EditorViewModel(
             }
 
             if (result is SplitResult.Success) {
+                val toc = generateTableOfContentsUseCase(result.document.blocks)
                 updateState {
                     copy(
                         blocks = result.document.blocks,
+                        tableOfContents = toc,
                         focusedBlockId = result.newBlockId,
                         cursorPosition = 0
                     )
@@ -236,9 +477,11 @@ class EditorViewModel(
             }
 
             if (result is MergeResult.Success) {
+                val toc = generateTableOfContentsUseCase(result.document.blocks)
                 updateState {
                     copy(
                         blocks = result.document.blocks,
+                        tableOfContents = toc,
                         focusedBlockId = result.targetBlockId,
                         cursorPosition = result.cursorPosition
                     )
@@ -261,10 +504,12 @@ class EditorViewModel(
             }
 
             undoResult.onSuccess { undoneDoc ->
+                val toc = generateTableOfContentsUseCase(undoneDoc.blocks)
                 redoStack.addLast(snapshot)
                 updateState {
                     copy(
                         blocks = undoneDoc.blocks,
+                        tableOfContents = toc,
                         canUndo = undoStack.isNotEmpty(),
                         canRedo = redoStack.isNotEmpty()
                     )
@@ -288,10 +533,12 @@ class EditorViewModel(
             }
 
             redoResult.onSuccess { redoneDoc ->
+                val toc = generateTableOfContentsUseCase(redoneDoc.blocks)
                 undoStack.addLast(snapshot)
                 updateState {
                     copy(
                         blocks = redoneDoc.blocks,
+                        tableOfContents = toc,
                         canUndo = undoStack.isNotEmpty(),
                         canRedo = redoStack.isNotEmpty()
                     )

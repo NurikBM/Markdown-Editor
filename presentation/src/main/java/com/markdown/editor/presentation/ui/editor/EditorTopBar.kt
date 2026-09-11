@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Toc
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VerticalSplit
 import androidx.compose.material.icons.filled.Visibility
@@ -64,6 +66,22 @@ fun EditorTopBar(
             )
         },
         actions = {
+            IconButton(onClick = { onIntent(EditorIntent.ToggleFindReplace()) }) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Find and Replace",
+                    tint = if (state.isFindReplaceVisible) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            IconButton(onClick = { onIntent(EditorIntent.ToggleTableOfContents()) }) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Toc,
+                    contentDescription = "Table of Contents",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
             IconButton(onClick = { onIntent(EditorIntent.TogglePreview) }) {
                 val (icon, desc) = when (state.viewMode) {
                     EditorViewMode.EDITOR_ONLY -> Icons.Default.Edit to "Mode: Editor (Tap to switch)"

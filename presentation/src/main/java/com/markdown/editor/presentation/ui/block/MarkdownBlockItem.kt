@@ -1,18 +1,19 @@
 package com.markdown.editor.presentation.ui.block
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.markdown.editor.domain.model.BlockId
@@ -47,6 +49,8 @@ import com.markdown.editor.presentation.syntax.CodeSyntaxVisualTransformation
 
 /**
  * Keyed block-level Composable ensuring isolated recomposition per [BlockId].
+ * Uses a single, unified BasicTextField to prevent IME / keyboard destruction
+ * during block type transitions (e.g. typing `# ` to transform paragraph to heading).
  */
 @Composable
 fun MarkdownBlockItem(
@@ -58,8 +62,9 @@ fun MarkdownBlockItem(
 ) {
     val focusRequester = remember { FocusRequester() }
 
-    // Internal text state for smooth typing and immediate cursor feedback
-    var textFieldValue by remember(block.id, block.rawContent) {
+    // Internal text state for smooth typing and immediate cursor feedback.
+    // Keyed ONLY on block.id to avoid destroying state on every keystroke.
+    var textFieldValue by remember(block.id) {
         val initialCursor = requestedCursorPosition?.coerceIn(0, block.rawContent.length)
             ?: block.rawContent.length
         mutableStateOf(
@@ -70,308 +75,188 @@ fun MarkdownBlockItem(
         )
     }
 
-    LaunchedEffect(isFocused, requestedCursorPosition) {
-        if (isFocused) {
-            focusRequester.requestFocus()
-            if (requestedCursorPosition != null) {
-                val clamped = requestedCursorPosition.coerceIn(0, textFieldValue.text.length)
-                textFieldValue = textFieldValue.copy(selection = TextRange(clamped))
+    // Keep external updates (Undo, Redo, initial load) synchronized without fighting user's active keystrokes
+    LaunchedEffect(block.rawContent) {
+        if (block.rawContent != textFieldValue.text) {
+            val clampedCursor = textFieldValue.selection.start.coerceIn(0, block.rawContent.length)
+            textFieldValue = textFieldValue.copy(
+                text = block.rawContent,
+                selection = TextRange(clampedCursor)
+            )
+        }
+    }
+
+    // Tracks the last applied programmatic cursor position so it's only applied once per request
+    var lastHandledCursorRequest by remember(block.id) { mutableStateOf<Int?>(null) }
+
+    // Handle programmatic cursor movement requests (e.g. from block split, merge, or TOC navigation)
+    LaunchedEffect(requestedCursorPosition, isFocused) {
+        if (isFocused && requestedCursorPosition != null && requestedCursorPosition != lastHandledCursorRequest) {
+            lastHandledCursorRequest = requestedCursorPosition
+            val target = requestedCursorPosition.coerceIn(0, textFieldValue.text.length)
+            if (textFieldValue.selection.start != target || textFieldValue.selection.end != target) {
+                textFieldValue = textFieldValue.copy(selection = TextRange(target))
             }
         }
     }
 
-    when (val type = block.type) {
-        is BlockType.Heading -> {
-            HeadingBlockView(
-                level = type.level,
-                textFieldValue = textFieldValue,
-                focusRequester = focusRequester,
-                onValueChange = { newValue ->
-                    handleValueChange(block.id, newValue, onIntent) { textFieldValue = it }
-                },
-                onIntent = onIntent,
-                blockId = block.id,
-                modifier = modifier
-            )
+    // Focus handling when this block is designated as focused
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            focusRequester.requestFocus()
         }
-        BlockType.Paragraph -> {
-            ParagraphBlockView(
-                textFieldValue = textFieldValue,
-                focusRequester = focusRequester,
-                onValueChange = { newValue ->
-                    handleValueChange(block.id, newValue, onIntent) { textFieldValue = it }
-                },
-                onIntent = onIntent,
-                blockId = block.id,
-                modifier = modifier
+    }
+
+    val isDark = isSystemInDarkTheme()
+    val visualTransformation: VisualTransformation = remember(block.type, isDark) {
+        if (block.type is BlockType.CodeBlock) {
+            CodeSyntaxVisualTransformation(
+                language = (block.type as BlockType.CodeBlock).language,
+                tokenizer = RegexCodeSyntaxTokenizer(),
+                isDarkTheme = isDark
             )
+        } else {
+            VisualTransformation.None
+        }
+    }
+
+    val textStyle = when (val type = block.type) {
+        is BlockType.Heading -> {
+            when (type.level) {
+                1 -> MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold, fontSize = 28.sp, color = MaterialTheme.colorScheme.primary)
+                2 -> MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
+                3 -> MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary)
+                4 -> MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+                5 -> MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                else -> MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
+            }
         }
         is BlockType.CodeBlock -> {
-            CodeBlockView(
-                language = type.language,
-                textFieldValue = textFieldValue,
-                focusRequester = focusRequester,
-                onValueChange = { newValue ->
-                    textFieldValue = newValue
-                    onIntent(EditorIntent.UpdateBlock(block.id, newValue.text))
-                },
-                onIntent = onIntent,
-                blockId = block.id,
-                modifier = modifier
-            )
-        }
-        is BlockType.ListItem -> {
-            ListItemBlockView(
-                ordered = type.ordered,
-                index = type.index,
-                textFieldValue = textFieldValue,
-                focusRequester = focusRequester,
-                onValueChange = { newValue ->
-                    handleValueChange(block.id, newValue, onIntent) { textFieldValue = it }
-                },
-                onIntent = onIntent,
-                blockId = block.id,
-                modifier = modifier
+            TextStyle(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         BlockType.BlockQuote -> {
-            BlockQuoteView(
-                textFieldValue = textFieldValue,
-                focusRequester = focusRequester,
-                onValueChange = { newValue ->
-                    handleValueChange(block.id, newValue, onIntent) { textFieldValue = it }
-                },
-                onIntent = onIntent,
-                blockId = block.id,
-                modifier = modifier
+            MaterialTheme.typography.bodyLarge.copy(
+                fontStyle = FontStyle.Italic,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 24.sp
             )
         }
-        BlockType.ThematicBreak -> {
-            ThematicBreakView(modifier = modifier)
+        is BlockType.ListItem -> {
+            MaterialTheme.typography.bodyLarge.copy(
+                color = MaterialTheme.colorScheme.onSurface,
+                lineHeight = 24.sp
+            )
+        }
+        else -> {
+            MaterialTheme.typography.bodyLarge.copy(
+                color = MaterialTheme.colorScheme.onSurface,
+                lineHeight = 24.sp
+            )
         }
     }
+
+    val verticalPadding = when (block.type) {
+        is BlockType.Heading -> 6.dp
+        is BlockType.CodeBlock -> 6.dp
+        is BlockType.ListItem -> 3.dp
+        else -> 4.dp
+    }
+
+    BasicTextField(
+        value = textFieldValue,
+        onValueChange = { newValue ->
+            handleValueChange(block, newValue, onIntent) { textFieldValue = it }
+        },
+        textStyle = textStyle,
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        visualTransformation = visualTransformation,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = verticalPadding, horizontal = 16.dp)
+            .focusRequester(focusRequester)
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused && !isFocused) {
+                    onIntent(EditorIntent.RequestFocus(block.id, textFieldValue.selection.start))
+                }
+            }
+            .onPreviewKeyEvent { event ->
+                handleKeyEvent(event, textFieldValue, block.id, onIntent)
+            },
+        decorationBox = { innerTextField ->
+            when (block.type) {
+                is BlockType.CodeBlock -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(12.dp)
+                    ) {
+                        innerTextField()
+                    }
+                }
+                BlockType.BlockQuote -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(4.dp)
+                                .height(24.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    shape = RoundedCornerShape(2.dp)
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Box(modifier = Modifier.weight(1f)) {
+                            innerTextField()
+                        }
+                    }
+                }
+                BlockType.ThematicBreak -> {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        innerTextField()
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                            thickness = 1.dp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+                else -> {
+                    innerTextField()
+                }
+            }
+        }
+    )
 }
 
 /**
  * Handles text field changes, detecting enter key splits across all keyboards.
+ * Code blocks are allowed to contain multiple lines without splitting.
  */
 private fun handleValueChange(
-    blockId: BlockId,
+    block: MarkdownBlock,
     newValue: TextFieldValue,
     onIntent: (EditorIntent) -> Unit,
     updateState: (TextFieldValue) -> Unit
 ) {
-    if (newValue.text.contains('\n')) {
+    val canContainNewlines = block.type is BlockType.CodeBlock
+    if (!canContainNewlines && newValue.text.contains('\n')) {
         val newlineIndex = newValue.text.indexOf('\n')
-        onIntent(EditorIntent.SplitBlock(blockId, newlineIndex))
+        onIntent(EditorIntent.SplitBlock(block.id, newlineIndex))
     } else {
         updateState(newValue)
-        onIntent(EditorIntent.UpdateBlock(blockId, newValue.text))
+        onIntent(EditorIntent.UpdateBlock(block.id, newValue.text))
     }
-}
-
-@Composable
-private fun ParagraphBlockView(
-    textFieldValue: TextFieldValue,
-    focusRequester: FocusRequester,
-    onValueChange: (TextFieldValue) -> Unit,
-    onIntent: (EditorIntent) -> Unit,
-    blockId: BlockId,
-    modifier: Modifier = Modifier
-) {
-    BasicTextField(
-        value = textFieldValue,
-        onValueChange = onValueChange,
-        textStyle = MaterialTheme.typography.bodyLarge.copy(
-            color = MaterialTheme.colorScheme.onSurface,
-            lineHeight = 24.sp
-        ),
-        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp, horizontal = 16.dp)
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { event ->
-                handleKeyEvent(event, textFieldValue, blockId, onIntent)
-            }
-    )
-}
-
-@Composable
-private fun HeadingBlockView(
-    level: Int,
-    textFieldValue: TextFieldValue,
-    focusRequester: FocusRequester,
-    onValueChange: (TextFieldValue) -> Unit,
-    onIntent: (EditorIntent) -> Unit,
-    blockId: BlockId,
-    modifier: Modifier = Modifier
-) {
-    val style = when (level) {
-        1 -> MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold, fontSize = 28.sp)
-        2 -> MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold, fontSize = 24.sp)
-        3 -> MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-        4 -> MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-        5 -> MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium, fontSize = 16.sp)
-        else -> MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium, fontSize = 14.sp)
-    }
-
-    BasicTextField(
-        value = textFieldValue,
-        onValueChange = onValueChange,
-        textStyle = style.copy(color = MaterialTheme.colorScheme.primary),
-        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp, horizontal = 16.dp)
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { event ->
-                handleKeyEvent(event, textFieldValue, blockId, onIntent)
-            }
-    )
-}
-
-@Composable
-private fun CodeBlockView(
-    language: String?,
-    textFieldValue: TextFieldValue,
-    focusRequester: FocusRequester,
-    onValueChange: (TextFieldValue) -> Unit,
-    onIntent: (EditorIntent) -> Unit,
-    blockId: BlockId,
-    modifier: Modifier = Modifier
-) {
-    val isDark = isSystemInDarkTheme()
-    val visualTransformation = remember(language, isDark) {
-        CodeSyntaxVisualTransformation(
-            language = language,
-            tokenizer = RegexCodeSyntaxTokenizer(),
-            isDarkTheme = isDark
-        )
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp, horizontal = 16.dp)
-            .background(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(12.dp)
-    ) {
-        BasicTextField(
-            value = textFieldValue,
-            onValueChange = onValueChange,
-            visualTransformation = visualTransformation,
-            textStyle = TextStyle(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            ),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester)
-                .onPreviewKeyEvent { event ->
-                    handleKeyEvent(event, textFieldValue, blockId, onIntent)
-                }
-        )
-    }
-}
-
-@Composable
-private fun ListItemBlockView(
-    ordered: Boolean,
-    index: Int?,
-    textFieldValue: TextFieldValue,
-    focusRequester: FocusRequester,
-    onValueChange: (TextFieldValue) -> Unit,
-    onIntent: (EditorIntent) -> Unit,
-    blockId: BlockId,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp, horizontal = 16.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        val prefix = if (ordered) "${index ?: 1}. " else "• "
-        Text(
-            text = prefix,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            ),
-            modifier = Modifier.padding(end = 4.dp)
-        )
-        BasicTextField(
-            value = textFieldValue,
-            onValueChange = onValueChange,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                color = MaterialTheme.colorScheme.onSurface
-            ),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            modifier = Modifier
-                .weight(1f)
-                .focusRequester(focusRequester)
-                .onPreviewKeyEvent { event ->
-                    handleKeyEvent(event, textFieldValue, blockId, onIntent)
-                }
-        )
-    }
-}
-
-@Composable
-private fun BlockQuoteView(
-    textFieldValue: TextFieldValue,
-    focusRequester: FocusRequester,
-    onValueChange: (TextFieldValue) -> Unit,
-    onIntent: (EditorIntent) -> Unit,
-    blockId: BlockId,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp, horizontal = 16.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .width(4.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.secondary,
-                    shape = RoundedCornerShape(2.dp)
-                )
-        )
-        BasicTextField(
-            value = textFieldValue,
-            onValueChange = onValueChange,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                fontStyle = FontStyle.Italic,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            ),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 12.dp)
-                .focusRequester(focusRequester)
-                .onPreviewKeyEvent { event ->
-                    handleKeyEvent(event, textFieldValue, blockId, onIntent)
-                }
-        )
-    }
-}
-
-@Composable
-private fun ThematicBreakView(modifier: Modifier = Modifier) {
-    HorizontalDivider(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp, horizontal = 16.dp),
-        color = MaterialTheme.colorScheme.outlineVariant
-    )
 }
 
 /**
@@ -395,4 +280,3 @@ private fun handleKeyEvent(
     }
     return false
 }
-

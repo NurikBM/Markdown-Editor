@@ -8,8 +8,11 @@ import com.markdown.editor.domain.parser.MarkdownBlockParser
 import com.markdown.editor.domain.repository.MarkdownRepository
 import com.markdown.editor.domain.repository.SnapshotRepository
 import com.markdown.editor.domain.usecase.ExportHtmlUseCase
+import com.markdown.editor.domain.usecase.FindInDocumentUseCase
+import com.markdown.editor.domain.usecase.GenerateTableOfContentsUseCase
 import com.markdown.editor.domain.usecase.MergeBlockUseCase
 import com.markdown.editor.domain.usecase.RedoBlockUseCase
+import com.markdown.editor.domain.usecase.ReplaceInDocumentUseCase
 import com.markdown.editor.domain.usecase.SplitBlockUseCase
 import com.markdown.editor.domain.usecase.UndoBlockUseCase
 import com.markdown.editor.presentation.editor.EditorViewModel
@@ -31,7 +34,10 @@ class EditorViewModelFactory(
     private val diffCalculator: DiffCalculator,
     private val parser: MarkdownBlockParser,
     private val dispatcherProvider: DispatcherProvider,
-    private val exportHtmlUseCase: ExportHtmlUseCase
+    private val exportHtmlUseCase: ExportHtmlUseCase,
+    private val generateTableOfContentsUseCase: GenerateTableOfContentsUseCase,
+    private val findInDocumentUseCase: FindInDocumentUseCase,
+    private val replaceInDocumentUseCase: ReplaceInDocumentUseCase
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -47,7 +53,10 @@ class EditorViewModelFactory(
                 diffCalculator = diffCalculator,
                 parser = parser,
                 dispatcherProvider = dispatcherProvider,
-                exportHtmlUseCase = exportHtmlUseCase
+                exportHtmlUseCase = exportHtmlUseCase,
+                generateTableOfContentsUseCase = generateTableOfContentsUseCase,
+                findInDocumentUseCase = findInDocumentUseCase,
+                replaceInDocumentUseCase = replaceInDocumentUseCase
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
@@ -69,7 +78,10 @@ object PresentationModule {
         diffCalculator: DiffCalculator,
         parser: MarkdownBlockParser,
         dispatcherProvider: DispatcherProvider,
-        exportHtmlUseCase: ExportHtmlUseCase
+        exportHtmlUseCase: ExportHtmlUseCase,
+        generateTableOfContentsUseCase: GenerateTableOfContentsUseCase,
+        findInDocumentUseCase: FindInDocumentUseCase,
+        replaceInDocumentUseCase: ReplaceInDocumentUseCase
     ): EditorViewModelFactory = EditorViewModelFactory(
         markdownRepository = markdownRepository,
         snapshotRepository = snapshotRepository,
@@ -80,7 +92,9 @@ object PresentationModule {
         diffCalculator = diffCalculator,
         parser = parser,
         dispatcherProvider = dispatcherProvider,
-        exportHtmlUseCase = exportHtmlUseCase
+        exportHtmlUseCase = exportHtmlUseCase,
+        generateTableOfContentsUseCase = generateTableOfContentsUseCase,
+        findInDocumentUseCase = findInDocumentUseCase,
+        replaceInDocumentUseCase = replaceInDocumentUseCase
     )
 }
-

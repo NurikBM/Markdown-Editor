@@ -69,5 +69,22 @@ object DomainModule {
     @Singleton
     fun provideCodeSyntaxTokenizer(): com.markdown.editor.domain.syntax.CodeSyntaxTokenizer =
         com.markdown.editor.domain.syntax.RegexCodeSyntaxTokenizer()
+
+    @Provides
+    @Singleton
+    fun provideGenerateTableOfContentsUseCase(): com.markdown.editor.domain.usecase.GenerateTableOfContentsUseCase =
+        com.markdown.editor.domain.usecase.GenerateTableOfContentsUseCase()
+
+    @Provides
+    @Singleton
+    fun provideFindInDocumentUseCase(): com.markdown.editor.domain.usecase.FindInDocumentUseCase =
+        com.markdown.editor.domain.usecase.FindInDocumentUseCase()
+
+    @Provides
+    @Singleton
+    fun provideReplaceInDocumentUseCase(
+        parser: MarkdownBlockParser
+    ): com.markdown.editor.domain.usecase.ReplaceInDocumentUseCase =
+        com.markdown.editor.domain.usecase.ReplaceInDocumentUseCase(parser)
 }
 

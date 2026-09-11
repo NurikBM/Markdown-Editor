@@ -3,6 +3,8 @@ package com.markdown.editor.presentation.editor
 import androidx.compose.runtime.Immutable
 import com.markdown.editor.domain.model.BlockId
 import com.markdown.editor.domain.model.MarkdownBlock
+import com.markdown.editor.domain.model.FindMatch
+import com.markdown.editor.domain.model.TableOfContentsItem
 import com.markdown.editor.presentation.mvi.UiEffect
 import com.markdown.editor.presentation.mvi.UiIntent
 import com.markdown.editor.presentation.mvi.UiState
@@ -24,6 +26,14 @@ data class EditorUiState(
     val documentId: String = "",
     val title: String = "Untitled",
     val blocks: List<MarkdownBlock> = emptyList(),
+    val tableOfContents: List<TableOfContentsItem> = emptyList(),
+    val isTableOfContentsVisible: Boolean = false,
+    val isFindReplaceVisible: Boolean = false,
+    val searchQuery: String = "",
+    val replaceQuery: String = "",
+    val findMatches: List<FindMatch> = emptyList(),
+    val currentMatchIndex: Int = -1,
+    val isCaseSensitive: Boolean = false,
     val viewMode: EditorViewMode = EditorViewMode.EDITOR_ONLY,
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
@@ -50,6 +60,16 @@ sealed interface EditorIntent : UiIntent {
     data object Redo : EditorIntent
     data object SaveExplicitly : EditorIntent
     data class ExportDocument(val format: com.markdown.editor.domain.model.ExportFormat) : EditorIntent
+    data class ToggleTableOfContents(val visible: Boolean? = null) : EditorIntent
+    data class NavigateToHeading(val item: TableOfContentsItem) : EditorIntent
+    data class ToggleFindReplace(val visible: Boolean? = null) : EditorIntent
+    data class SetSearchQuery(val query: String) : EditorIntent
+    data class SetReplaceQuery(val query: String) : EditorIntent
+    data class SetCaseSensitive(val caseSensitive: Boolean) : EditorIntent
+    data object FindNextMatch : EditorIntent
+    data object FindPreviousMatch : EditorIntent
+    data object ReplaceCurrentMatch : EditorIntent
+    data object ReplaceAllMatches : EditorIntent
 }
 
 /**
@@ -57,6 +77,7 @@ sealed interface EditorIntent : UiIntent {
  */
 sealed interface EditorEffect : UiEffect {
     data class RequestFocusOnBlock(val blockId: BlockId, val cursorPosition: Int = 0) : EditorEffect
+    data class ScrollToBlock(val blockIndex: Int, val blockId: BlockId) : EditorEffect
     data class ShowToast(val message: String) : EditorEffect
     data class ShowError(val message: String) : EditorEffect
     data class PrintHtml(val jobName: String, val htmlContent: String) : EditorEffect

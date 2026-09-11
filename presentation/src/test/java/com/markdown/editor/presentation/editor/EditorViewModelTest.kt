@@ -358,4 +358,277 @@ class EditorViewModelTest {
             assertEquals("Hello MD", share.content)
         }
     }
+
+    @Test
+    fun `loading document generates table of contents from heading blocks`() = runTest(testDispatcher) {
+        val testDoc = MarkdownDocument(
+            id = "doc-toc",
+            title = "TOC Test",
+            blocks = listOf(
+                MarkdownBlock(id = BlockId("h1"), rawContent = "# Introduction", type = BlockType.Heading(1), plainText = "Introduction"),
+                MarkdownBlock(id = BlockId("p1"), rawContent = "Some text", type = BlockType.Paragraph, plainText = "Some text"),
+                MarkdownBlock(id = BlockId("h2"), rawContent = "## Getting Started", type = BlockType.Heading(2), plainText = "Getting Started")
+            )
+        )
+        coEvery { markdownRepository.getDocument("doc-toc") } returns Result.success(testDoc)
+
+        viewModel.processIntent(EditorIntent.LoadDocument("doc-toc"))
+        advanceUntilIdle()
+
+        val toc = viewModel.uiState.value.tableOfContents
+        assertEquals(2, toc.size)
+        assertEquals(BlockId("h1"), toc[0].blockId)
+        assertEquals(1, toc[0].level)
+        assertEquals("Introduction", toc[0].title)
+        assertEquals(0, toc[0].blockIndex)
+
+        assertEquals(BlockId("h2"), toc[1].blockId)
+        assertEquals(2, toc[1].level)
+        assertEquals("Getting Started", toc[1].title)
+        assertEquals(2, toc[1].blockIndex)
+    }
+
+    @Test
+    fun `toggleTableOfContents toggles visibility in uiState`() = runTest(testDispatcher) {
+        assertFalse(viewModel.uiState.value.isTableOfContentsVisible)
+
+        viewModel.processIntent(EditorIntent.ToggleTableOfContents())
+        assertTrue(viewModel.uiState.value.isTableOfContentsVisible)
+
+        viewModel.processIntent(EditorIntent.ToggleTableOfContents())
+        assertFalse(viewModel.uiState.value.isTableOfContentsVisible)
+
+        viewModel.processIntent(EditorIntent.ToggleTableOfContents(visible = true))
+        assertTrue(viewModel.uiState.value.isTableOfContentsVisible)
+    }
+
+    @Test
+    fun `navigateToHeading closes TOC, updates focus, and emits ScrollToBlock effect`() = runTest(testDispatcher) {
+        val headingBlock = MarkdownBlock(
+            id = BlockId("heading-target"),
+            rawContent = "## Architecture",
+            type = BlockType.Heading(2),
+            plainText = "Architecture"
+        )
+        val testDoc = MarkdownDocument(
+            id = "doc-nav",
+            title = "Navigation Test",
+            blocks = listOf(
+                MarkdownBlock(id = BlockId("p1"), rawContent = "Paragraph", type = BlockType.Paragraph),
+                headingBlock
+            )
+        )
+        coEvery { markdownRepository.getDocument("doc-nav") } returns Result.success(testDoc)
+        viewModel.processIntent(EditorIntent.LoadDocument("doc-nav"))
+        viewModel.processIntent(EditorIntent.ToggleTableOfContents(visible = true))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isTableOfContentsVisible)
+        val tocItem = viewModel.uiState.value.tableOfContents.first()
+
+        viewModel.uiEffect.test {
+            viewModel.processIntent(EditorIntent.NavigateToHeading(tocItem))
+
+            val scrollEffect = awaitItem()
+            assertTrue(scrollEffect is EditorEffect.ScrollToBlock)
+            val scroll = scrollEffect as EditorEffect.ScrollToBlock
+            assertEquals(1, scroll.blockIndex)
+            assertEquals(BlockId("heading-target"), scroll.blockId)
+
+            val focusEffect = awaitItem()
+            assertTrue(focusEffect is EditorEffect.RequestFocusOnBlock)
+            assertEquals(BlockId("heading-target"), (focusEffect as EditorEffect.RequestFocusOnBlock).blockId)
+        }
+
+        assertFalse(viewModel.uiState.value.isTableOfContentsVisible)
+        assertEquals(BlockId("heading-target"), viewModel.uiState.value.focusedBlockId)
+    }
+
+    @Test
+    fun `updating block to heading automatically refreshes table of contents`() = runTest(testDispatcher) {
+        val blockId = BlockId("editable-block")
+        val testDoc = MarkdownDocument(
+            id = "doc-edit",
+            title = "Edit Test",
+            blocks = listOf(
+                MarkdownBlock(id = blockId, rawContent = "Just a paragraph", type = BlockType.Paragraph)
+            )
+        )
+        coEvery { markdownRepository.getDocument("doc-edit") } returns Result.success(testDoc)
+        viewModel.processIntent(EditorIntent.LoadDocument("doc-edit"))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.tableOfContents.isEmpty())
+
+        viewModel.processIntent(EditorIntent.UpdateBlock(blockId, "### Deep Dive"))
+        advanceUntilIdle()
+
+        val toc = viewModel.uiState.value.tableOfContents
+        assertEquals(1, toc.size)
+        assertEquals(3, toc[0].level)
+        assertEquals("Deep Dive", toc[0].title)
+    }
+
+    @Test
+    fun `toggleFindReplace toggles visibility and resets query on hide`() = runTest(testDispatcher) {
+        assertFalse(viewModel.uiState.value.isFindReplaceVisible)
+
+        viewModel.processIntent(EditorIntent.ToggleFindReplace(visible = true))
+        assertTrue(viewModel.uiState.value.isFindReplaceVisible)
+
+        viewModel.processIntent(EditorIntent.SetSearchQuery("Kotlin"))
+        viewModel.processIntent(EditorIntent.SetReplaceQuery("Java"))
+        assertEquals("Kotlin", viewModel.uiState.value.searchQuery)
+        assertEquals("Java", viewModel.uiState.value.replaceQuery)
+
+        viewModel.processIntent(EditorIntent.ToggleFindReplace(visible = false))
+        assertFalse(viewModel.uiState.value.isFindReplaceVisible)
+        assertEquals("", viewModel.uiState.value.searchQuery)
+        assertEquals("", viewModel.uiState.value.replaceQuery)
+        assertTrue(viewModel.uiState.value.findMatches.isEmpty())
+    }
+
+    @Test
+    fun `search query finds matches across multiple blocks and navigates to first match`() = runTest(testDispatcher) {
+        val testDoc = MarkdownDocument(
+            id = "doc-find",
+            title = "Find Test",
+            blocks = listOf(
+                MarkdownBlock(id = BlockId("b1"), rawContent = "Hello world, markdown world", type = BlockType.Paragraph),
+                MarkdownBlock(id = BlockId("b2"), rawContent = "Another world here", type = BlockType.Paragraph)
+            )
+        )
+        coEvery { markdownRepository.getDocument("doc-find") } returns Result.success(testDoc)
+        viewModel.processIntent(EditorIntent.LoadDocument("doc-find"))
+        advanceUntilIdle()
+
+        viewModel.uiEffect.test {
+            viewModel.processIntent(EditorIntent.SetSearchQuery("world"))
+            advanceUntilIdle()
+
+            val scrollEffect = awaitItem()
+            assertTrue(scrollEffect is EditorEffect.ScrollToBlock)
+            val scroll = scrollEffect as EditorEffect.ScrollToBlock
+            assertEquals(0, scroll.blockIndex)
+
+            val focusEffect = awaitItem()
+            assertTrue(focusEffect is EditorEffect.RequestFocusOnBlock)
+            val focus = focusEffect as EditorEffect.RequestFocusOnBlock
+            assertEquals(BlockId("b1"), focus.blockId)
+            assertEquals(6, focus.cursorPosition)
+        }
+
+        val state = viewModel.uiState.value
+        assertEquals(3, state.findMatches.size)
+        assertEquals(0, state.currentMatchIndex)
+    }
+
+    @Test
+    fun `findNextMatch and findPreviousMatch navigate cyclically through matches`() = runTest(testDispatcher) {
+        val testDoc = MarkdownDocument(
+            id = "doc-cycle",
+            title = "Cycle Test",
+            blocks = listOf(
+                MarkdownBlock(id = BlockId("b1"), rawContent = "match one and match two", type = BlockType.Paragraph),
+                MarkdownBlock(id = BlockId("b2"), rawContent = "match three", type = BlockType.Paragraph)
+            )
+        )
+        coEvery { markdownRepository.getDocument("doc-cycle") } returns Result.success(testDoc)
+        viewModel.processIntent(EditorIntent.LoadDocument("doc-cycle"))
+        advanceUntilIdle()
+
+        viewModel.uiEffect.test {
+            viewModel.processIntent(EditorIntent.SetSearchQuery("match"))
+            advanceUntilIdle()
+
+            // Consume initial effects from match 0
+            awaitItem() // scroll to match 0
+            awaitItem() // focus on match 0
+
+            assertEquals(3, viewModel.uiState.value.findMatches.size)
+            assertEquals(0, viewModel.uiState.value.currentMatchIndex)
+
+            // Next -> index 1
+            viewModel.processIntent(EditorIntent.FindNextMatch)
+            assertEquals(1, viewModel.uiState.value.currentMatchIndex)
+            awaitItem() // scroll
+            awaitItem() // focus
+
+            // Next -> index 2
+            viewModel.processIntent(EditorIntent.FindNextMatch)
+            assertEquals(2, viewModel.uiState.value.currentMatchIndex)
+            awaitItem() // scroll
+            awaitItem() // focus
+
+            // Next -> wrap around to index 0
+            viewModel.processIntent(EditorIntent.FindNextMatch)
+            assertEquals(0, viewModel.uiState.value.currentMatchIndex)
+            awaitItem() // scroll
+            awaitItem() // focus
+
+            // Previous -> wrap around to index 2
+            viewModel.processIntent(EditorIntent.FindPreviousMatch)
+            assertEquals(2, viewModel.uiState.value.currentMatchIndex)
+            awaitItem() // scroll
+            awaitItem() // focus
+        }
+    }
+
+    @Test
+    fun `replaceCurrentMatch replaces single match and records undo snapshot`() = runTest(testDispatcher) {
+        val testDoc = MarkdownDocument(
+            id = "doc-replace",
+            title = "Replace Test",
+            blocks = listOf(
+                MarkdownBlock(id = BlockId("b1"), rawContent = "foo bar foo", type = BlockType.Paragraph)
+            )
+        )
+        coEvery { markdownRepository.getDocument("doc-replace") } returns Result.success(testDoc)
+        viewModel.processIntent(EditorIntent.LoadDocument("doc-replace"))
+        advanceUntilIdle()
+
+        viewModel.processIntent(EditorIntent.SetSearchQuery("foo"))
+        viewModel.processIntent(EditorIntent.SetReplaceQuery("baz"))
+        advanceUntilIdle()
+
+        assertEquals(2, viewModel.uiState.value.findMatches.size)
+        assertEquals(0, viewModel.uiState.value.currentMatchIndex)
+
+        viewModel.processIntent(EditorIntent.ReplaceCurrentMatch)
+        advanceUntilIdle()
+
+        val updatedBlock = viewModel.uiState.value.blocks.first()
+        assertEquals("baz bar foo", updatedBlock.rawContent)
+        // 1 match remaining
+        assertEquals(1, viewModel.uiState.value.findMatches.size)
+        assertTrue(viewModel.uiState.value.canUndo)
+    }
+
+    @Test
+    fun `replaceAllMatches replaces all occurrences across document blocks`() = runTest(testDispatcher) {
+        val testDoc = MarkdownDocument(
+            id = "doc-replace-all",
+            title = "Replace All Test",
+            blocks = listOf(
+                MarkdownBlock(id = BlockId("b1"), rawContent = "cat and cat", type = BlockType.Paragraph),
+                MarkdownBlock(id = BlockId("b2"), rawContent = "another cat", type = BlockType.Paragraph)
+            )
+        )
+        coEvery { markdownRepository.getDocument("doc-replace-all") } returns Result.success(testDoc)
+        viewModel.processIntent(EditorIntent.LoadDocument("doc-replace-all"))
+        advanceUntilIdle()
+
+        viewModel.processIntent(EditorIntent.SetSearchQuery("cat"))
+        viewModel.processIntent(EditorIntent.SetReplaceQuery("dog"))
+        advanceUntilIdle()
+
+        assertEquals(3, viewModel.uiState.value.findMatches.size)
+
+        viewModel.processIntent(EditorIntent.ReplaceAllMatches)
+        advanceUntilIdle()
+
+        assertEquals("dog and dog", viewModel.uiState.value.blocks[0].rawContent)
+        assertEquals("another dog", viewModel.uiState.value.blocks[1].rawContent)
+        assertEquals(0, viewModel.uiState.value.findMatches.size)
+    }
 }
