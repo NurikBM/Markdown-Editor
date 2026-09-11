@@ -246,4 +246,34 @@ class EditorViewModelTest {
 
         coVerify { markdownRepository.saveDocument(any()) }
     }
+
+    @Test
+    fun `setViewMode updates viewMode in state`() = runTest(testDispatcher) {
+        assertEquals(EditorViewMode.EDITOR_ONLY, viewModel.uiState.value.viewMode)
+
+        viewModel.processIntent(EditorIntent.SetViewMode(EditorViewMode.SPLIT_VIEW))
+        advanceUntilIdle()
+        assertEquals(EditorViewMode.SPLIT_VIEW, viewModel.uiState.value.viewMode)
+
+        viewModel.processIntent(EditorIntent.SetViewMode(EditorViewMode.PREVIEW_ONLY))
+        advanceUntilIdle()
+        assertEquals(EditorViewMode.PREVIEW_ONLY, viewModel.uiState.value.viewMode)
+    }
+
+    @Test
+    fun `togglePreview cycles sequentially through view modes`() = runTest(testDispatcher) {
+        assertEquals(EditorViewMode.EDITOR_ONLY, viewModel.uiState.value.viewMode)
+
+        viewModel.processIntent(EditorIntent.TogglePreview)
+        advanceUntilIdle()
+        assertEquals(EditorViewMode.SPLIT_VIEW, viewModel.uiState.value.viewMode)
+
+        viewModel.processIntent(EditorIntent.TogglePreview)
+        advanceUntilIdle()
+        assertEquals(EditorViewMode.PREVIEW_ONLY, viewModel.uiState.value.viewMode)
+
+        viewModel.processIntent(EditorIntent.TogglePreview)
+        advanceUntilIdle()
+        assertEquals(EditorViewMode.EDITOR_ONLY, viewModel.uiState.value.viewMode)
+    }
 }

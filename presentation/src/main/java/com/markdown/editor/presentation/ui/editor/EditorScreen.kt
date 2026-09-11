@@ -1,29 +1,43 @@
 package com.markdown.editor.presentation.ui.editor
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.markdown.editor.domain.model.BlockId
+import com.markdown.editor.domain.model.MarkdownBlock
 import com.markdown.editor.presentation.editor.EditorEffect
 import com.markdown.editor.presentation.editor.EditorIntent
 import com.markdown.editor.presentation.editor.EditorUiState
+import com.markdown.editor.presentation.editor.EditorViewMode
 import com.markdown.editor.presentation.ui.block.MarkdownBlockItem
+import com.markdown.editor.presentation.ui.preview.MarkdownPreviewPane
+import com.markdown.editor.presentation.ui.sync.rememberSynchronizedScroll
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Root editor screen hosting the block-based LazyColumn editor and TopAppBar.
- * Enforces key-based recomposition isolation per [BlockId].
+ * Root editor screen hosting the block-based LazyColumn editor, rich preview, and TopAppBar.
+ * Enforces key-based recomposition isolation per [BlockId] and supports Split-View mode.
  */
 @Composable
 fun EditorScreen(
@@ -33,6 +47,14 @@ fun EditorScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val editorListState = rememberLazyListState()
+    val previewListState = rememberLazyListState()
+
+    rememberSynchronizedScroll(
+        editorListState = editorListState,
+        previewListState = previewListState,
+        enabled = state.viewMode == EditorViewMode.SPLIT_VIEW
+    )
 
     LaunchedEffect(effects) {
         effects.collect { effect ->
@@ -68,22 +90,96 @@ fun EditorScreen(
             if (state.isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(
-                        items = state.blocks,
-                        key = { it.id.value }
-                    ) { block ->
-                        MarkdownBlockItem(
-                            block = block,
-                            isFocused = state.focusedBlockId == block.id,
-                            requestedCursorPosition = if (state.focusedBlockId == block.id) state.cursorPosition else null,
-                            onIntent = onIntent
+                when (state.viewMode) {
+                    EditorViewMode.EDITOR_ONLY -> {
+                        EditorPane(
+                            blocks = state.blocks,
+                            focusedBlockId = state.focusedBlockId,
+                            cursorPosition = state.cursorPosition,
+                            onIntent = onIntent,
+                            listState = editorListState
                         )
+                    }
+                    EditorViewMode.PREVIEW_ONLY -> {
+                        MarkdownPreviewPane(
+                            blocks = state.blocks,
+                            listState = previewListState
+                        )
+                    }
+                    EditorViewMode.SPLIT_VIEW -> {
+                        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                            if (maxWidth >= 600.dp) {
+                                Row(modifier = Modifier.fillMaxSize()) {
+                                    EditorPane(
+                                        blocks = state.blocks,
+                                        focusedBlockId = state.focusedBlockId,
+                                        cursorPosition = state.cursorPosition,
+                                        onIntent = onIntent,
+                                        listState = editorListState,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    VerticalDivider(
+                                        color = MaterialTheme.colorScheme.outlineVariant,
+                                        thickness = 1.dp
+                                    )
+                                    MarkdownPreviewPane(
+                                        blocks = state.blocks,
+                                        listState = previewListState,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            } else {
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    EditorPane(
+                                        blocks = state.blocks,
+                                        focusedBlockId = state.focusedBlockId,
+                                        cursorPosition = state.cursorPosition,
+                                        onIntent = onIntent,
+                                        listState = editorListState,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    HorizontalDivider(
+                                        color = MaterialTheme.colorScheme.outlineVariant,
+                                        thickness = 1.dp
+                                    )
+                                    MarkdownPreviewPane(
+                                        blocks = state.blocks,
+                                        listState = previewListState,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun EditorPane(
+    blocks: List<MarkdownBlock>,
+    focusedBlockId: BlockId?,
+    cursorPosition: Int,
+    onIntent: (EditorIntent) -> Unit,
+    listState: LazyListState,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxSize()
+    ) {
+        items(
+            items = blocks,
+            key = { it.id.value }
+        ) { block ->
+            MarkdownBlockItem(
+                block = block,
+                isFocused = focusedBlockId == block.id,
+                requestedCursorPosition = if (focusedBlockId == block.id) cursorPosition else null,
+                onIntent = onIntent
+            )
         }
     }
 }

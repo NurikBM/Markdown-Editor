@@ -10,7 +10,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.VerticalSplit
+import androidx.compose.material.icons.filled.Visibility
+import com.markdown.editor.presentation.editor.EditorViewMode
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -52,6 +56,19 @@ fun EditorTopBar(
             )
         },
         actions = {
+            IconButton(onClick = { onIntent(EditorIntent.TogglePreview) }) {
+                val (icon, desc) = when (state.viewMode) {
+                    EditorViewMode.EDITOR_ONLY -> Icons.Default.Edit to "Mode: Editor (Tap to switch)"
+                    EditorViewMode.SPLIT_VIEW -> Icons.Default.VerticalSplit to "Mode: Split View (Tap to switch)"
+                    EditorViewMode.PREVIEW_ONLY -> Icons.Default.Visibility to "Mode: Preview (Tap to switch)"
+                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = desc,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
             IconButton(
                 onClick = { onIntent(EditorIntent.Undo) },
                 enabled = state.canUndo

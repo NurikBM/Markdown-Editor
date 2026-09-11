@@ -2,9 +2,9 @@
 
 ## Active State
 - **Current Phase:** Phase 5 — High-Value Core Enhancements
-- **Current Milestone:** Milestone 5.1 — Live Preview & Split-View Mode
-- **Active Subtask:** Subtask 5.1.1 — Architectural Design & Implementation of Markdown Preview Renderer and Split-View Layout with Synchronized Scrolling
-- **Status:** IN_PROGRESS
+- **Current Milestone:** Milestone 5.2 — Document Export Pipeline (HTML & PDF)
+- **Active Subtask:** Subtask 5.2.1 — Implement HTML & PDF export use cases with typed domain error handling
+- **Status:** READY
 
 ## Completed Milestones
 - [x] **Milestone 1.1**: Bootstrap multi-module architecture (`:core`, `:domain`, `:data`, `:presentation`, `:app`) with verified Gradle sync and compilation across all layers. Created `AGENTS.md`, `STATE.md`, and version catalog `gradle/libs.versions.toml`.
@@ -20,13 +20,13 @@
 - [x] **Milestone 4.1**: Implemented pure Clean Architecture block manipulation use cases in `:domain` (`SplitBlockUseCase`, `MergeBlockUseCase`, `UndoBlockUseCase`, `RedoBlockUseCase`, `DiffCalculator`), `EditorViewModel` with MVI contracts (`EditorUiState`, `EditorIntent`, `EditorEffect`), and verified unit tests with Turbine and MockK across `:domain` and `:presentation`.
 - [x] **Milestone 4.2**: Implemented Jetpack Compose block UI components (`MarkdownBlockItem`, `ParagraphBlockView`, `HeadingBlockView`, `CodeBlockView`, `ListItemBlockView`, `BlockQuoteView`, `ThematicBreakView`) keyed by `BlockId` in `LazyColumn`, `EditorTopBar` with Undo/Redo/Save, `EditorScreen`, and integrated with `MainActivity` via Hilt `EditorViewModelFactory`.
 - [x] **Milestone 4.3**: Verified MVP block editing pipeline, UI recomposition isolation, focus traversal on split/merge, undo/redo deltas, and debug APK assembly.
+- [x] **Milestone 5.1**: Implemented rich Markdown live preview renderer (`MarkdownPreviewBlockItem`, `MarkdownPreviewPane`), split-view container with adaptive responsive layouts (side-by-side on wide screens, stacked on compact screens), bidirectional synchronized scrolling coordinator (`rememberSynchronizedScroll`), and mode switcher in `EditorTopBar` and `EditorViewModel`. Verified unit tests and debug APK assembly.
 
 ## Immediate Next Steps
-1. **Milestone 5.1**: Live Preview & Split-View mode with synchronized scroll interpolation.
-2. **Milestone 5.2**: Document Export Pipeline (HTML & PDF generation via Android print adapter with typed domain errors).
-3. **Milestone 5.3**: Syntax highlighting for fenced code blocks using regex-based tokenization.
-4. **Milestone 5.4**: Table of Contents (ToC) generation directly from AST Heading blocks with click-to-scroll navigation.
-5. **Milestone 5.5**: In-document Find & Replace across block boundaries.
+1. **Milestone 5.2**: Document Export Pipeline (HTML & PDF generation via Android print adapter with typed domain errors).
+2. **Milestone 5.3**: Syntax highlighting for fenced code blocks using regex-based tokenization.
+3. **Milestone 5.4**: Table of Contents (ToC) generation directly from AST Heading blocks with click-to-scroll navigation.
+4. **Milestone 5.5**: In-document Find & Replace across block boundaries.
 
 ## Key Architecture Decisions (ADR Log)
 | Date       | Decision                                      | Context & Rationale                                                                                                                                                                                | Status   |
@@ -47,6 +47,7 @@
 | 2026-09-11 | Debounced Auto-Save & Offloaded Diffing       | Designed `AutoSaveCoordinator` using coroutine job cancellation debounce on `Dispatchers.IO` and Myers diff offloading to `diffAndParsing` dispatcher.                                            | ACCEPTED |
 | 2026-09-11 | Pure Domain Block Mutation & Diff Contracts   | Implemented `SplitBlockUseCase`, `MergeBlockUseCase`, `UndoBlockUseCase`, `RedoBlockUseCase`, and `DiffCalculator` in `:domain`, completely decoupled from presentation and persistence.          | ACCEPTED |
 | 2026-09-11 | Keyed Block Recomposition & IME Split Handler | Keyed `LazyColumn` items by `BlockId.value` for isolated recomposition; implemented universal newline splitting and cursor placement for Enter and Backspace key gestures.                        | ACCEPTED |
+| 2026-09-11 | Live Preview & Bidirectional Scroll Sync      | Built isolated MarkdownPreviewBlockItem interpreting domain InlineSpan and BlockType; implemented loop-free bidirectional LazyColumn scroll synchronization via LazyListState.isScrollInProgress. | ACCEPTED |
 
 ## Technical Baseline & Chosen Versions
 - **Kotlin:** `2.4.20`
@@ -65,5 +66,5 @@
 - **SDK Constraints:** `minSdk = 26`, `targetSdk = 37`, `compileSdk = 37`
 
 ## Session Handoff Block
-- **Last Verified State:** Phase 4 fully verified. All 96 unit test tasks passing across all 5 modules with 0 errors. Clean working tree and commit `9d16adc`. Debug APK assembly verified (`assembleDebug` succeeds).
-- **Exact Resumption Command/Action:** Execute Milestone 5.1 (Live Preview & Split-View Mode with Synchronized Scrolling).
+- **Last Verified State:** Milestone 5.1 complete and verified. Full unit test suite (`testDebugUnitTest`) verified with 96/96 tasks passing across all 5 modules with 0 warnings/errors. Full APK assembly (`assembleDebug`) verified. Rich preview, adaptive split-view, and synchronized scrolling fully operational.
+- **Exact Resumption Command/Action:** Proceed to Milestone 5.2: Document Export Pipeline (HTML and PDF generation via Android print adapter with typed domain errors).

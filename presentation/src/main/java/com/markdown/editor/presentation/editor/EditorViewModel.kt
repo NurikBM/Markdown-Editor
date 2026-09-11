@@ -47,9 +47,26 @@ class EditorViewModel(
             is EditorIntent.MergeBlockWithPrevious -> mergeBlock(intent.blockId)
             is EditorIntent.RequestFocus -> requestFocus(intent.blockId, intent.cursorPosition)
             is EditorIntent.ChangeTitle -> changeTitle(intent.newTitle)
+            is EditorIntent.SetViewMode -> setViewMode(intent.mode)
+            EditorIntent.TogglePreview -> togglePreview()
             EditorIntent.Undo -> performUndo()
             EditorIntent.Redo -> performRedo()
             EditorIntent.SaveExplicitly -> saveExplicitly()
+        }
+    }
+
+    private fun setViewMode(mode: EditorViewMode) {
+        updateState { copy(viewMode = mode) }
+    }
+
+    private fun togglePreview() {
+        updateState {
+            val nextMode = when (viewMode) {
+                EditorViewMode.EDITOR_ONLY -> EditorViewMode.SPLIT_VIEW
+                EditorViewMode.SPLIT_VIEW -> EditorViewMode.PREVIEW_ONLY
+                EditorViewMode.PREVIEW_ONLY -> EditorViewMode.EDITOR_ONLY
+            }
+            copy(viewMode = nextMode)
         }
     }
 
