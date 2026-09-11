@@ -95,10 +95,59 @@ class EditorViewModel(
                         errorMessage = null
                     )
                 }
-            }.onFailure { error ->
-                updateState { copy(isLoading = false, errorMessage = error.message) }
-                sendEffect(EditorEffect.ShowError(error.message ?: "Failed to load document"))
+            }.onFailure {
+                // If not found in local persistence, bootstrap a rich initial document so the app is immediately usable
+                val defaultDoc = createInitialDocument(documentId)
+                withContext(dispatcherProvider.io) {
+                    markdownRepository.saveDocument(defaultDoc)
+                }
+                undoStack.clear()
+                redoStack.clear()
+                updateState {
+                    copy(
+                        documentId = defaultDoc.id,
+                        title = defaultDoc.title,
+                        blocks = defaultDoc.blocks,
+                        isLoading = false,
+                        canUndo = false,
+                        canRedo = false,
+                        errorMessage = null
+                    )
+                }
             }
+        }
+    }
+
+    private suspend fun createInitialDocument(documentId: String): MarkdownDocument {
+        val welcomeMarkdown = """
+            # Welcome to Markdown Editor
+
+            A high-performance, offline-first Markdown editor built with modern Android and Jetpack Compose.
+
+            ## Features
+            - **Block-based editing**: Each paragraph, heading, and code block updates independently.
+            - **Live Preview & Split-View**: Tap the view icon in the top bar to toggle side-by-side or stacked view.
+            - **Offline-first**: All changes are continuously saved to your local Room database.
+
+            > "Simplicity is prerequisite for reliability." — Edsger W. Dijkstra
+
+            ```kotlin
+            fun main() {
+                println("Hello, Markdown Editor!")
+            }
+            ```
+
+            ---
+
+            Start typing here to test block splitting with Enter and merging with Backspace!
+        """.trimIndent()
+
+        return withContext(dispatcherProvider.diffAndParsing) {
+            parser.parseDocument(
+                rawMarkdown = welcomeMarkdown,
+                documentId = documentId,
+                title = "Welcome to Markdown Editor"
+            )
         }
     }
 

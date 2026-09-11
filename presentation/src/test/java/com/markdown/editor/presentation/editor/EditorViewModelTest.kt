@@ -276,4 +276,19 @@ class EditorViewModelTest {
         advanceUntilIdle()
         assertEquals(EditorViewMode.EDITOR_ONLY, viewModel.uiState.value.viewMode)
     }
+
+    @Test
+    fun `loadDocument when not found bootstraps initial welcome document`() = runTest(testDispatcher) {
+        coEvery { markdownRepository.getDocument("missing-doc") } returns Result.failure(Exception("Not found"))
+
+        viewModel.processIntent(EditorIntent.LoadDocument("missing-doc"))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("missing-doc", state.documentId)
+        assertEquals("Welcome to Markdown Editor", state.title)
+        assertTrue(state.blocks.isNotEmpty())
+        assertFalse(state.isLoading)
+        coVerify { markdownRepository.saveDocument(match { it.id == "missing-doc" }, any()) }
+    }
 }
