@@ -2,6 +2,7 @@ package com.markdown.editor.presentation.ui.block
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,7 +41,9 @@ import androidx.compose.ui.unit.sp
 import com.markdown.editor.domain.model.BlockId
 import com.markdown.editor.domain.model.BlockType
 import com.markdown.editor.domain.model.MarkdownBlock
+import com.markdown.editor.domain.syntax.RegexCodeSyntaxTokenizer
 import com.markdown.editor.presentation.editor.EditorIntent
+import com.markdown.editor.presentation.syntax.CodeSyntaxVisualTransformation
 
 /**
  * Keyed block-level Composable ensuring isolated recomposition per [BlockId].
@@ -238,6 +241,15 @@ private fun CodeBlockView(
     blockId: BlockId,
     modifier: Modifier = Modifier
 ) {
+    val isDark = isSystemInDarkTheme()
+    val visualTransformation = remember(language, isDark) {
+        CodeSyntaxVisualTransformation(
+            language = language,
+            tokenizer = RegexCodeSyntaxTokenizer(),
+            isDarkTheme = isDark
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -251,6 +263,7 @@ private fun CodeBlockView(
         BasicTextField(
             value = textFieldValue,
             onValueChange = onValueChange,
+            visualTransformation = visualTransformation,
             textStyle = TextStyle(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 14.sp,

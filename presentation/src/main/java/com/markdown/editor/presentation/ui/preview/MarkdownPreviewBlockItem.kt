@@ -3,6 +3,7 @@ package com.markdown.editor.presentation.ui.preview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,8 @@ import androidx.compose.ui.unit.sp
 import com.markdown.editor.domain.model.BlockType
 import com.markdown.editor.domain.model.InlineSpan
 import com.markdown.editor.domain.model.MarkdownBlock
+import com.markdown.editor.domain.syntax.RegexCodeSyntaxTokenizer
+import com.markdown.editor.presentation.syntax.CodeSyntaxHighlighter
 
 /**
  * Keyed preview renderer for a single [MarkdownBlock].
@@ -164,6 +167,15 @@ private fun PreviewCodeBlock(
     modifier: Modifier = Modifier
 ) {
     val clipboardManager = LocalClipboardManager.current
+    val isDark = isSystemInDarkTheme()
+    val highlightedCode = remember(code, language, isDark) {
+        CodeSyntaxHighlighter.highlight(
+            code = code,
+            language = language,
+            tokenizer = RegexCodeSyntaxTokenizer(),
+            isDarkTheme = isDark
+        )
+    }
 
     Surface(
         shape = RoundedCornerShape(8.dp),
@@ -211,7 +223,7 @@ private fun PreviewCodeBlock(
                     .padding(12.dp)
             ) {
                 Text(
-                    text = code,
+                    text = highlightedCode,
                     style = TextStyle(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,

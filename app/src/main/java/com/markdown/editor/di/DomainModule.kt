@@ -64,5 +64,10 @@ object DomainModule {
     fun provideExportHtmlUseCase(
         dispatcherProvider: DispatcherProvider
     ): com.markdown.editor.domain.usecase.ExportHtmlUseCase = com.markdown.editor.domain.usecase.ExportHtmlUseCase(dispatcherProvider.diffAndParsing)
+
+    @Provides
+    @Singleton
+    fun provideCodeSyntaxTokenizer(): com.markdown.editor.domain.syntax.CodeSyntaxTokenizer =
+        com.markdown.editor.domain.syntax.RegexCodeSyntaxTokenizer()
 }
 
