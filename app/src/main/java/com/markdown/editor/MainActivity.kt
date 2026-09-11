@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import com.markdown.editor.di.EditorViewModelFactory
 import com.markdown.editor.presentation.editor.EditorIntent
 import com.markdown.editor.presentation.editor.EditorViewModel
+import com.markdown.editor.presentation.theme.MarkdownEditorTheme
 import com.markdown.editor.presentation.ui.editor.EditorScreen
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -30,10 +31,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    val state by viewModel.uiState.collectAsState()
+            val state by viewModel.uiState.collectAsState()
 
+            MarkdownEditorTheme(appTheme = state.appTheme) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
                     LaunchedEffect(Unit) {
                         viewModel.processIntent(EditorIntent.LoadDocument("default-document"))
                     }
@@ -48,4 +52,3 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-

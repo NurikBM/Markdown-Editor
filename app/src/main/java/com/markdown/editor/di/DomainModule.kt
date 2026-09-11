@@ -86,5 +86,10 @@ object DomainModule {
         parser: MarkdownBlockParser
     ): com.markdown.editor.domain.usecase.ReplaceInDocumentUseCase =
         com.markdown.editor.domain.usecase.ReplaceInDocumentUseCase(parser)
+
+    @Provides
+    @Singleton
+    fun provideApplyFormattingUseCase(): com.markdown.editor.domain.usecase.ApplyFormattingUseCase =
+        com.markdown.editor.domain.usecase.ApplyFormattingUseCase()
 }
 

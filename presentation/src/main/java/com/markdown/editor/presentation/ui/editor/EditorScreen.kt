@@ -140,12 +140,16 @@ fun EditorScreen(
                 if (state.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 } else {
+                    val activeMatch = state.findMatches.getOrNull(state.currentMatchIndex)
                     when (state.viewMode) {
                         EditorViewMode.EDITOR_ONLY -> {
                             EditorPane(
                                 blocks = state.blocks,
                                 focusedBlockId = state.focusedBlockId,
                                 cursorPosition = state.cursorPosition,
+                                searchQuery = state.searchQuery,
+                                isCaseSensitive = state.isCaseSensitive,
+                                activeMatch = activeMatch,
                                 onIntent = onIntent,
                                 listState = editorListState
                             )
@@ -153,6 +157,8 @@ fun EditorScreen(
                         EditorViewMode.PREVIEW_ONLY -> {
                             MarkdownPreviewPane(
                                 blocks = state.blocks,
+                                searchQuery = state.searchQuery,
+                                isCaseSensitive = state.isCaseSensitive,
                                 listState = previewListState
                             )
                         }
@@ -164,6 +170,9 @@ fun EditorScreen(
                                             blocks = state.blocks,
                                             focusedBlockId = state.focusedBlockId,
                                             cursorPosition = state.cursorPosition,
+                                            searchQuery = state.searchQuery,
+                                            isCaseSensitive = state.isCaseSensitive,
+                                            activeMatch = activeMatch,
                                             onIntent = onIntent,
                                             listState = editorListState,
                                             modifier = Modifier.weight(1f)
@@ -174,6 +183,8 @@ fun EditorScreen(
                                         )
                                         MarkdownPreviewPane(
                                             blocks = state.blocks,
+                                            searchQuery = state.searchQuery,
+                                            isCaseSensitive = state.isCaseSensitive,
                                             listState = previewListState,
                                             modifier = Modifier.weight(1f)
                                         )
@@ -184,6 +195,9 @@ fun EditorScreen(
                                             blocks = state.blocks,
                                             focusedBlockId = state.focusedBlockId,
                                             cursorPosition = state.cursorPosition,
+                                            searchQuery = state.searchQuery,
+                                            isCaseSensitive = state.isCaseSensitive,
+                                            activeMatch = activeMatch,
                                             onIntent = onIntent,
                                             listState = editorListState,
                                             modifier = Modifier.weight(1f)
@@ -194,6 +208,8 @@ fun EditorScreen(
                                         )
                                         MarkdownPreviewPane(
                                             blocks = state.blocks,
+                                            searchQuery = state.searchQuery,
+                                            isCaseSensitive = state.isCaseSensitive,
                                             listState = previewListState,
                                             modifier = Modifier.weight(1f)
                                         )
@@ -203,6 +219,12 @@ fun EditorScreen(
                         }
                     }
                 }
+            }
+
+            if (state.viewMode != EditorViewMode.PREVIEW_ONLY) {
+                com.markdown.editor.presentation.ui.toolbar.MarkdownAccessoryToolbar(
+                    onIntent = onIntent
+                )
             }
         }
     }
@@ -221,6 +243,9 @@ private fun EditorPane(
     blocks: List<MarkdownBlock>,
     focusedBlockId: BlockId?,
     cursorPosition: Int,
+    searchQuery: String,
+    isCaseSensitive: Boolean,
+    activeMatch: com.markdown.editor.domain.model.FindMatch?,
     onIntent: (EditorIntent) -> Unit,
     listState: LazyListState,
     modifier: Modifier = Modifier
@@ -233,10 +258,18 @@ private fun EditorPane(
             items = blocks,
             key = { it.id.value }
         ) { block ->
+            val matchRange = if (activeMatch?.blockId == block.id) {
+                activeMatch.startIndex..activeMatch.endIndex
+            } else {
+                null
+            }
             MarkdownBlockItem(
                 block = block,
                 isFocused = focusedBlockId == block.id,
                 requestedCursorPosition = if (focusedBlockId == block.id) cursorPosition else null,
+                searchQuery = searchQuery,
+                isCaseSensitive = isCaseSensitive,
+                activeMatchRange = matchRange,
                 onIntent = onIntent
             )
         }

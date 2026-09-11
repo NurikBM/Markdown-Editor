@@ -4,10 +4,12 @@ import androidx.compose.runtime.Immutable
 import com.markdown.editor.domain.model.BlockId
 import com.markdown.editor.domain.model.MarkdownBlock
 import com.markdown.editor.domain.model.FindMatch
+import com.markdown.editor.domain.model.MarkdownFormatAction
 import com.markdown.editor.domain.model.TableOfContentsItem
 import com.markdown.editor.presentation.mvi.UiEffect
 import com.markdown.editor.presentation.mvi.UiIntent
 import com.markdown.editor.presentation.mvi.UiState
+import com.markdown.editor.presentation.theme.AppTheme
 
 /**
  * Display modes for the Markdown editor.
@@ -35,12 +37,14 @@ data class EditorUiState(
     val currentMatchIndex: Int = -1,
     val isCaseSensitive: Boolean = false,
     val viewMode: EditorViewMode = EditorViewMode.EDITOR_ONLY,
+    val appTheme: AppTheme = AppTheme.SYSTEM,
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,
     val focusedBlockId: BlockId? = null,
     val cursorPosition: Int = 0,
+    val selectionEnd: Int = 0,
     val errorMessage: String? = null
 ) : UiState
 
@@ -52,7 +56,7 @@ sealed interface EditorIntent : UiIntent {
     data class UpdateBlock(val blockId: BlockId, val newContent: String) : EditorIntent
     data class SplitBlock(val blockId: BlockId, val cursorPosition: Int) : EditorIntent
     data class MergeBlockWithPrevious(val blockId: BlockId) : EditorIntent
-    data class RequestFocus(val blockId: BlockId, val cursorPosition: Int = 0) : EditorIntent
+    data class RequestFocus(val blockId: BlockId, val cursorPosition: Int = 0, val selectionEnd: Int = cursorPosition) : EditorIntent
     data class ChangeTitle(val newTitle: String) : EditorIntent
     data class SetViewMode(val mode: EditorViewMode) : EditorIntent
     data object TogglePreview : EditorIntent
@@ -70,6 +74,8 @@ sealed interface EditorIntent : UiIntent {
     data object FindPreviousMatch : EditorIntent
     data object ReplaceCurrentMatch : EditorIntent
     data object ReplaceAllMatches : EditorIntent
+    data class ApplyFormatting(val action: MarkdownFormatAction) : EditorIntent
+    data class SetTheme(val theme: AppTheme) : EditorIntent
 }
 
 /**

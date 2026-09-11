@@ -7,6 +7,7 @@ import com.markdown.editor.domain.diff.DiffCalculator
 import com.markdown.editor.domain.parser.MarkdownBlockParser
 import com.markdown.editor.domain.repository.MarkdownRepository
 import com.markdown.editor.domain.repository.SnapshotRepository
+import com.markdown.editor.domain.usecase.ApplyFormattingUseCase
 import com.markdown.editor.domain.usecase.ExportHtmlUseCase
 import com.markdown.editor.domain.usecase.FindInDocumentUseCase
 import com.markdown.editor.domain.usecase.GenerateTableOfContentsUseCase
@@ -37,7 +38,8 @@ class EditorViewModelFactory(
     private val exportHtmlUseCase: ExportHtmlUseCase,
     private val generateTableOfContentsUseCase: GenerateTableOfContentsUseCase,
     private val findInDocumentUseCase: FindInDocumentUseCase,
-    private val replaceInDocumentUseCase: ReplaceInDocumentUseCase
+    private val replaceInDocumentUseCase: ReplaceInDocumentUseCase,
+    private val applyFormattingUseCase: ApplyFormattingUseCase
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -56,7 +58,8 @@ class EditorViewModelFactory(
                 exportHtmlUseCase = exportHtmlUseCase,
                 generateTableOfContentsUseCase = generateTableOfContentsUseCase,
                 findInDocumentUseCase = findInDocumentUseCase,
-                replaceInDocumentUseCase = replaceInDocumentUseCase
+                replaceInDocumentUseCase = replaceInDocumentUseCase,
+                applyFormattingUseCase = applyFormattingUseCase
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
@@ -81,7 +84,8 @@ object PresentationModule {
         exportHtmlUseCase: ExportHtmlUseCase,
         generateTableOfContentsUseCase: GenerateTableOfContentsUseCase,
         findInDocumentUseCase: FindInDocumentUseCase,
-        replaceInDocumentUseCase: ReplaceInDocumentUseCase
+        replaceInDocumentUseCase: ReplaceInDocumentUseCase,
+        applyFormattingUseCase: ApplyFormattingUseCase
     ): EditorViewModelFactory = EditorViewModelFactory(
         markdownRepository = markdownRepository,
         snapshotRepository = snapshotRepository,
@@ -95,6 +99,7 @@ object PresentationModule {
         exportHtmlUseCase = exportHtmlUseCase,
         generateTableOfContentsUseCase = generateTableOfContentsUseCase,
         findInDocumentUseCase = findInDocumentUseCase,
-        replaceInDocumentUseCase = replaceInDocumentUseCase
+        replaceInDocumentUseCase = replaceInDocumentUseCase,
+        applyFormattingUseCase = applyFormattingUseCase
     )
 }

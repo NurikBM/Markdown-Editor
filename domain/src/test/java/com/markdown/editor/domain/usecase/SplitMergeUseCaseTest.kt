@@ -147,5 +147,102 @@ class SplitMergeUseCaseTest {
         val updatedDoc = result.getOrThrow()
         assertEquals("Redone text", updatedDoc.blocks[0].rawContent)
     }
+
+    @Test
+    fun `splitBlock continues bullet list with new bullet item`() {
+        val block = MarkdownBlock(
+            id = BlockId("b-1"),
+            rawContent = "- Item 1",
+            type = BlockType.ListItem(false)
+        )
+        val document = MarkdownDocument(id = "doc-1", blocks = listOf(block))
+
+        val result = splitBlockUseCase(document, BlockId("b-1"), cursorPosition = 8)
+        assertTrue(result is SplitResult.Success)
+        val success = result as SplitResult.Success
+
+        assertEquals(2, success.document.blocks.size)
+        assertEquals("- Item 1", success.document.blocks[0].rawContent)
+        assertEquals("- ", success.document.blocks[1].rawContent)
+        assertEquals(2, success.cursorPosition)
+    }
+
+    @Test
+    fun `splitBlock continues numbered list incrementing counter`() {
+        val block = MarkdownBlock(
+            id = BlockId("b-1"),
+            rawContent = "1. Item 1",
+            type = BlockType.ListItem(true)
+        )
+        val document = MarkdownDocument(id = "doc-1", blocks = listOf(block))
+
+        val result = splitBlockUseCase(document, BlockId("b-1"), cursorPosition = 9)
+        assertTrue(result is SplitResult.Success)
+        val success = result as SplitResult.Success
+
+        assertEquals(2, success.document.blocks.size)
+        assertEquals("1. Item 1", success.document.blocks[0].rawContent)
+        assertEquals("2. ", success.document.blocks[1].rawContent)
+        assertEquals(3, success.cursorPosition)
+    }
+
+    @Test
+    fun `splitBlock continues quote block with quote marker`() {
+        val block = MarkdownBlock(
+            id = BlockId("b-1"),
+            rawContent = "> Thought",
+            type = BlockType.BlockQuote
+        )
+        val document = MarkdownDocument(id = "doc-1", blocks = listOf(block))
+
+        val result = splitBlockUseCase(document, BlockId("b-1"), cursorPosition = 9)
+        assertTrue(result is SplitResult.Success)
+        val success = result as SplitResult.Success
+
+        assertEquals(2, success.document.blocks.size)
+        assertEquals("> Thought", success.document.blocks[0].rawContent)
+        assertEquals("> ", success.document.blocks[1].rawContent)
+        assertEquals(2, success.cursorPosition)
+    }
+
+    @Test
+    fun `splitBlock exits empty bullet list reverting to paragraph`() {
+        val block = MarkdownBlock(
+            id = BlockId("b-1"),
+            rawContent = "- ",
+            type = BlockType.ListItem(false)
+        )
+        val document = MarkdownDocument(id = "doc-1", blocks = listOf(block))
+
+        val result = splitBlockUseCase(document, BlockId("b-1"), cursorPosition = 2)
+        assertTrue(result is SplitResult.Success)
+        val success = result as SplitResult.Success
+
+        assertEquals(1, success.document.blocks.size)
+        assertEquals(BlockId("b-1"), success.document.blocks[0].id)
+        assertEquals("", success.document.blocks[0].rawContent)
+        assertTrue(success.document.blocks[0].type is BlockType.Paragraph)
+        assertEquals(0, success.cursorPosition)
+    }
+
+    @Test
+    fun `splitBlock exits empty quote reverting to paragraph`() {
+        val block = MarkdownBlock(
+            id = BlockId("b-1"),
+            rawContent = "> ",
+            type = BlockType.BlockQuote
+        )
+        val document = MarkdownDocument(id = "doc-1", blocks = listOf(block))
+
+        val result = splitBlockUseCase(document, BlockId("b-1"), cursorPosition = 2)
+        assertTrue(result is SplitResult.Success)
+        val success = result as SplitResult.Success
+
+        assertEquals(1, success.document.blocks.size)
+        assertEquals(BlockId("b-1"), success.document.blocks[0].id)
+        assertEquals("", success.document.blocks[0].rawContent)
+        assertTrue(success.document.blocks[0].type is BlockType.Paragraph)
+        assertEquals(0, success.cursorPosition)
+    }
 }
 

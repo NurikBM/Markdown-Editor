@@ -5,14 +5,16 @@ import com.markdown.editor.core.dispatcher.DispatcherProvider
 import com.markdown.editor.domain.diff.DiffCalculator
 import com.markdown.editor.domain.model.BlockId
 import com.markdown.editor.domain.model.DocumentSnapshot
+import com.markdown.editor.domain.model.ExportFormat
+import com.markdown.editor.domain.model.FindMatch
 import com.markdown.editor.domain.model.MarkdownBlock
 import com.markdown.editor.domain.model.MarkdownDocument
+import com.markdown.editor.domain.model.MarkdownFormatAction
+import com.markdown.editor.domain.model.TableOfContentsItem
 import com.markdown.editor.domain.parser.MarkdownBlockParser
 import com.markdown.editor.domain.repository.MarkdownRepository
 import com.markdown.editor.domain.repository.SnapshotRepository
-import com.markdown.editor.domain.model.ExportFormat
-import com.markdown.editor.domain.model.FindMatch
-import com.markdown.editor.domain.model.TableOfContentsItem
+import com.markdown.editor.domain.usecase.ApplyFormattingUseCase
 import com.markdown.editor.domain.usecase.ExportHtmlUseCase
 import com.markdown.editor.domain.usecase.FindInDocumentUseCase
 import com.markdown.editor.domain.usecase.GenerateTableOfContentsUseCase
@@ -24,12 +26,15 @@ import com.markdown.editor.domain.usecase.SplitBlockUseCase
 import com.markdown.editor.domain.usecase.SplitResult
 import com.markdown.editor.domain.usecase.UndoBlockUseCase
 import com.markdown.editor.presentation.mvi.MviViewModel
+import com.markdown.editor.presentation.theme.AppTheme
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
  * Production MVI ViewModel managing block-based document state, split/merge keystrokes,
- * deterministic undo/redo history, and in-editor navigation and search.
+ * deterministic undo/redo history, in-editor navigation, search, and quick accessory formatting.
  */
 class EditorViewModel(
     private val markdownRepository: MarkdownRepository,
@@ -44,11 +49,14 @@ class EditorViewModel(
     private val exportHtmlUseCase: ExportHtmlUseCase,
     private val generateTableOfContentsUseCase: GenerateTableOfContentsUseCase = GenerateTableOfContentsUseCase(),
     private val findInDocumentUseCase: FindInDocumentUseCase = FindInDocumentUseCase(),
-    private val replaceInDocumentUseCase: ReplaceInDocumentUseCase = ReplaceInDocumentUseCase(parser)
+    private val replaceInDocumentUseCase: ReplaceInDocumentUseCase = ReplaceInDocumentUseCase(parser),
+    private val applyFormattingUseCase: ApplyFormattingUseCase = ApplyFormattingUseCase()
 ) : MviViewModel<EditorUiState, EditorIntent, EditorEffect>(EditorUiState()) {
 
     private val undoStack = ArrayDeque<DocumentSnapshot>()
     private val redoStack = ArrayDeque<DocumentSnapshot>()
+    private var typingJob: Job? = null
+    private val typingBaselineContent = mutableMapOf<BlockId, String>()
 
     override fun processIntent(intent: EditorIntent) {
         when (intent) {
@@ -56,7 +64,7 @@ class EditorViewModel(
             is EditorIntent.UpdateBlock -> updateBlock(intent.blockId, intent.newContent)
             is EditorIntent.SplitBlock -> splitBlock(intent.blockId, intent.cursorPosition)
             is EditorIntent.MergeBlockWithPrevious -> mergeBlock(intent.blockId)
-            is EditorIntent.RequestFocus -> requestFocus(intent.blockId, intent.cursorPosition)
+            is EditorIntent.RequestFocus -> requestFocus(intent.blockId, intent.cursorPosition, intent.selectionEnd)
             is EditorIntent.ChangeTitle -> changeTitle(intent.newTitle)
             is EditorIntent.SetViewMode -> setViewMode(intent.mode)
             is EditorIntent.ExportDocument -> exportDocument(intent.format)
@@ -66,6 +74,8 @@ class EditorViewModel(
             is EditorIntent.SetSearchQuery -> setSearchQuery(intent.query)
             is EditorIntent.SetReplaceQuery -> setReplaceQuery(intent.query)
             is EditorIntent.SetCaseSensitive -> setCaseSensitive(intent.caseSensitive)
+            is EditorIntent.ApplyFormatting -> applyFormatting(intent.action)
+            is EditorIntent.SetTheme -> setTheme(intent.theme)
             EditorIntent.FindNextMatch -> findNextMatch()
             EditorIntent.FindPreviousMatch -> findPreviousMatch()
             EditorIntent.ReplaceCurrentMatch -> replaceCurrentMatch()
@@ -101,7 +111,8 @@ class EditorViewModel(
             copy(
                 isTableOfContentsVisible = false,
                 focusedBlockId = item.blockId,
-                cursorPosition = 0
+                cursorPosition = 0,
+                selectionEnd = 0
             )
         }
         sendEffect(EditorEffect.ScrollToBlock(blockIndex = item.blockIndex, blockId = item.blockId))
@@ -310,32 +321,41 @@ class EditorViewModel(
     private fun loadDocument(documentId: String) {
         viewModelScope.launch {
             updateState { copy(isLoading = true, errorMessage = null) }
+
             val result = withContext(dispatcherProvider.io) {
                 markdownRepository.getDocument(documentId)
             }
+
             result.onSuccess { doc ->
-                val blocks = doc.blocks.ifEmpty {
-                    listOf(withContext(dispatcherProvider.diffAndParsing) {
-                        parser.parseBlock(
-                            "",
-                            BlockId()
-                        )
-                    })
+                val activeDoc = if (doc.blocks.isEmpty()) {
+                    createInitialDocument(doc.id)
+                } else {
+                    doc
                 }
-                val toc = generateTableOfContentsUseCase(blocks)
+
                 undoStack.clear()
                 redoStack.clear()
+
+                val toc = generateTableOfContentsUseCase(activeDoc.blocks)
                 updateState {
                     copy(
-                        documentId = doc.id,
-                        title = doc.title,
-                        blocks = blocks,
+                        documentId = activeDoc.id,
+                        title = activeDoc.title,
+                        blocks = activeDoc.blocks,
                         tableOfContents = toc,
                         isLoading = false,
                         canUndo = false,
                         canRedo = false,
-                        errorMessage = null
+                        focusedBlockId = activeDoc.blocks.firstOrNull()?.id,
+                        cursorPosition = 0,
+                        selectionEnd = 0
                     )
+                }
+
+                if (doc.blocks.isEmpty()) {
+                    withContext(dispatcherProvider.io) {
+                        markdownRepository.saveDocument(activeDoc)
+                    }
                 }
             }.onFailure {
                 // If not found in local persistence, bootstrap a rich initial document so the app is immediately usable
@@ -355,6 +375,9 @@ class EditorViewModel(
                         isLoading = false,
                         canUndo = false,
                         canRedo = false,
+                        focusedBlockId = defaultDoc.blocks.firstOrNull()?.id,
+                        cursorPosition = 0,
+                        selectionEnd = 0,
                         errorMessage = null
                     )
                 }
@@ -396,17 +419,43 @@ class EditorViewModel(
     }
 
     private fun updateBlock(blockId: BlockId, newContent: String) {
-        viewModelScope.launch {
-            val currentDoc = currentDocument()
-            val blockIndex = currentDoc.blocks.indexOfFirst { it.id == blockId }
-            if (blockIndex == -1) return@launch
+        val currentDoc = currentDocument()
+        val blockIndex = currentDoc.blocks.indexOfFirst { it.id == blockId }
+        if (blockIndex == -1) return
 
-            val oldBlock = currentDoc.blocks[blockIndex]
-            if (oldBlock.rawContent == newContent) return@launch
+        val oldBlock = currentDoc.blocks[blockIndex]
+        if (oldBlock.rawContent == newContent) return
 
-            // Compute Myers diff for undo snapshot
+        // 1. Preserve initial baseline before continuous typing started (for single undo snapshot)
+        if (!typingBaselineContent.containsKey(blockId)) {
+            typingBaselineContent[blockId] = oldBlock.rawContent
+        }
+
+        // 2. Immediately update in-memory state for zero-latency UI responsiveness
+        val inMemoryUpdated = currentDoc.blocks.toMutableList().apply {
+            set(blockIndex, oldBlock.copy(rawContent = newContent))
+        }
+        updateState { copy(blocks = inMemoryUpdated) }
+
+        // 3. Debounce Myers diff, Room snapshot, Commonmark parsing, and persistence
+        typingJob?.cancel()
+        typingJob = viewModelScope.launch {
+            delay(300L)
+            flushTyping(blockId, newContent)
+        }
+    }
+
+    private suspend fun flushTyping(blockId: BlockId, newContent: String) {
+        val currentDoc = currentDocument()
+        val blockIndex = currentDoc.blocks.indexOfFirst { it.id == blockId }
+        if (blockIndex == -1) return
+
+        val baselineContent = typingBaselineContent.remove(blockId) ?: newContent
+
+        // Compute Myers diff between initial baseline and debounced final content
+        if (baselineContent != newContent) {
             val diffResult = withContext(dispatcherProvider.diffAndParsing) {
-                diffCalculator.computeDiff(oldBlock.rawContent, newContent)
+                diffCalculator.computeDiff(baselineContent, newContent)
             }
 
             if (diffResult.hasChanges) {
@@ -422,31 +471,40 @@ class EditorViewModel(
                     snapshotRepository.recordSnapshot(snapshot)
                 }
             }
-
-            // Re-parse single block incrementally on diff/parsing dispatcher
-            val updatedBlock = withContext(dispatcherProvider.diffAndParsing) {
-                parser.parseBlock(newContent, blockId)
-            }
-
-            val updatedBlocks = currentDoc.blocks.toMutableList().apply {
-                set(blockIndex, updatedBlock)
-            }
-
-            val toc = generateTableOfContentsUseCase(updatedBlocks)
-            updateState {
-                copy(
-                    blocks = updatedBlocks,
-                    tableOfContents = toc,
-                    canUndo = undoStack.isNotEmpty(),
-                    canRedo = redoStack.isNotEmpty()
-                )
-            }
-
-            persistCurrentDocument()
         }
+
+        // Re-parse single block incrementally on diff/parsing dispatcher
+        val updatedBlock = withContext(dispatcherProvider.diffAndParsing) {
+            parser.parseBlock(newContent, blockId)
+        }
+
+        val updatedBlocks = currentDoc.blocks.toMutableList().apply {
+            set(blockIndex, updatedBlock)
+        }
+
+        val toc = generateTableOfContentsUseCase(updatedBlocks)
+        val matches = if (uiState.value.searchQuery.isNotEmpty()) {
+            findInDocumentUseCase(updatedBlocks, uiState.value.searchQuery, uiState.value.isCaseSensitive)
+        } else {
+            emptyList()
+        }
+
+        updateState {
+            copy(
+                blocks = updatedBlocks,
+                tableOfContents = toc,
+                findMatches = matches,
+                canUndo = undoStack.isNotEmpty(),
+                canRedo = redoStack.isNotEmpty()
+            )
+        }
+
+        persistCurrentDocument()
     }
 
     private fun splitBlock(blockId: BlockId, cursorPosition: Int) {
+        typingJob?.cancel()
+        typingBaselineContent.clear()
         viewModelScope.launch {
             val currentDoc = currentDocument()
             val result = withContext(dispatcherProvider.diffAndParsing) {
@@ -460,16 +518,19 @@ class EditorViewModel(
                         blocks = result.document.blocks,
                         tableOfContents = toc,
                         focusedBlockId = result.newBlockId,
-                        cursorPosition = 0
+                        cursorPosition = result.cursorPosition,
+                        selectionEnd = result.cursorPosition
                     )
                 }
-                sendEffect(EditorEffect.RequestFocusOnBlock(result.newBlockId, 0))
+                sendEffect(EditorEffect.RequestFocusOnBlock(result.newBlockId, result.cursorPosition))
                 persistCurrentDocument()
             }
         }
     }
 
     private fun mergeBlock(blockId: BlockId) {
+        typingJob?.cancel()
+        typingBaselineContent.clear()
         viewModelScope.launch {
             val currentDoc = currentDocument()
             val result = withContext(dispatcherProvider.diffAndParsing) {
@@ -483,7 +544,8 @@ class EditorViewModel(
                         blocks = result.document.blocks,
                         tableOfContents = toc,
                         focusedBlockId = result.targetBlockId,
-                        cursorPosition = result.cursorPosition
+                        cursorPosition = result.cursorPosition,
+                        selectionEnd = result.cursorPosition
                     )
                 }
                 sendEffect(EditorEffect.RequestFocusOnBlock(result.targetBlockId, result.cursorPosition))
@@ -493,6 +555,8 @@ class EditorViewModel(
     }
 
     private fun performUndo() {
+        typingJob?.cancel()
+        typingBaselineContent.clear()
         if (undoStack.isEmpty()) return
 
         viewModelScope.launch {
@@ -522,6 +586,8 @@ class EditorViewModel(
     }
 
     private fun performRedo() {
+        typingJob?.cancel()
+        typingBaselineContent.clear()
         if (redoStack.isEmpty()) return
 
         viewModelScope.launch {
@@ -550,9 +616,82 @@ class EditorViewModel(
         }
     }
 
-    private fun requestFocus(blockId: BlockId, cursorPosition: Int) {
-        updateState { copy(focusedBlockId = blockId, cursorPosition = cursorPosition) }
+    private fun requestFocus(blockId: BlockId, cursorPosition: Int, selectionEnd: Int = cursorPosition) {
+        updateState {
+            copy(
+                focusedBlockId = blockId,
+                cursorPosition = cursorPosition,
+                selectionEnd = selectionEnd
+            )
+        }
         sendEffect(EditorEffect.RequestFocusOnBlock(blockId, cursorPosition))
+    }
+
+    private fun setTheme(theme: AppTheme) {
+        updateState { copy(appTheme = theme) }
+    }
+
+    private fun applyFormatting(action: MarkdownFormatAction) {
+        typingJob?.cancel()
+        typingBaselineContent.clear()
+        viewModelScope.launch {
+            val currentDoc = currentDocument()
+            val focusedId = uiState.value.focusedBlockId ?: currentDoc.blocks.firstOrNull()?.id ?: return@launch
+            val blockIndex = currentDoc.blocks.indexOfFirst { it.id == focusedId }
+            if (blockIndex == -1) return@launch
+
+            val targetBlock = currentDoc.blocks[blockIndex]
+            val formattingResult = applyFormattingUseCase(
+                content = targetBlock.rawContent,
+                selectionStart = uiState.value.cursorPosition,
+                selectionEnd = uiState.value.selectionEnd,
+                action = action
+            )
+
+            if (formattingResult.newContent == targetBlock.rawContent) return@launch
+
+            val diffResult = withContext(dispatcherProvider.diffAndParsing) {
+                diffCalculator.computeDiff(targetBlock.rawContent, formattingResult.newContent)
+            }
+
+            if (diffResult.hasChanges) {
+                val snapshot = DocumentSnapshot(
+                    documentId = currentDoc.id,
+                    blockId = focusedId,
+                    forwardDiff = diffResult.forwardDiff,
+                    reverseDiff = diffResult.reverseDiff
+                )
+                undoStack.addLast(snapshot)
+                redoStack.clear()
+                withContext(dispatcherProvider.io) {
+                    snapshotRepository.recordSnapshot(snapshot)
+                }
+            }
+
+            val updatedBlock = withContext(dispatcherProvider.diffAndParsing) {
+                parser.parseBlock(formattingResult.newContent, focusedId)
+            }
+
+            val updatedBlocks = currentDoc.blocks.toMutableList().apply {
+                set(blockIndex, updatedBlock)
+            }
+
+            val toc = generateTableOfContentsUseCase(updatedBlocks)
+            updateState {
+                copy(
+                    blocks = updatedBlocks,
+                    tableOfContents = toc,
+                    focusedBlockId = focusedId,
+                    cursorPosition = formattingResult.cursorPosition,
+                    selectionEnd = formattingResult.selectionEnd,
+                    canUndo = undoStack.isNotEmpty(),
+                    canRedo = redoStack.isNotEmpty()
+                )
+            }
+
+            sendEffect(EditorEffect.RequestFocusOnBlock(focusedId, formattingResult.cursorPosition))
+            persistCurrentDocument()
+        }
     }
 
     private fun changeTitle(newTitle: String) {
@@ -642,4 +781,3 @@ class EditorViewModel(
         )
     }
 }
-

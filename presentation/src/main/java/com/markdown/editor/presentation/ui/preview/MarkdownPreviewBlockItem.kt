@@ -53,13 +53,23 @@ import com.markdown.editor.presentation.syntax.CodeSyntaxHighlighter
 @Composable
 fun MarkdownPreviewBlockItem(
     block: MarkdownBlock,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    searchQuery: String = "",
+    isCaseSensitive: Boolean = false
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
     val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
 
-    val annotatedText = remember(block.plainText, block.rawContent, block.inlines, primaryColor, surfaceVariantColor) {
+    val rawAnnotated = remember(block.plainText, block.rawContent, block.inlines, primaryColor, surfaceVariantColor) {
         buildAnnotatedMarkdown(block, primaryColor, surfaceVariantColor)
+    }
+
+    val annotatedText = remember(rawAnnotated, searchQuery, isCaseSensitive) {
+        if (searchQuery.isNotEmpty()) {
+            highlightSearchMatches(rawAnnotated, searchQuery, isCaseSensitive)
+        } else {
+            rawAnnotated
+        }
     }
 
     when (val type = block.type) {
@@ -80,6 +90,8 @@ fun MarkdownPreviewBlockItem(
             PreviewCodeBlock(
                 code = block.rawContent,
                 language = type.language,
+                searchQuery = searchQuery,
+                isCaseSensitive = isCaseSensitive,
                 modifier = modifier
             )
         }
@@ -164,6 +176,8 @@ private fun PreviewParagraph(
 private fun PreviewCodeBlock(
     code: String,
     language: String?,
+    searchQuery: String = "",
+    isCaseSensitive: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -175,6 +189,14 @@ private fun PreviewCodeBlock(
             tokenizer = RegexCodeSyntaxTokenizer(),
             isDarkTheme = isDark
         )
+    }
+
+    val displayCode = remember(highlightedCode, searchQuery, isCaseSensitive) {
+        if (searchQuery.isNotEmpty()) {
+            highlightSearchMatches(highlightedCode, searchQuery, isCaseSensitive)
+        } else {
+            highlightedCode
+        }
     }
 
     Surface(
@@ -223,7 +245,7 @@ private fun PreviewCodeBlock(
                     .padding(12.dp)
             ) {
                 Text(
-                    text = highlightedCode,
+                    text = displayCode,
                     style = TextStyle(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,
@@ -373,3 +395,31 @@ private fun buildAnnotatedMarkdown(
         }
     }
 }
+
+/**
+ * Overlays a translucent yellow background span on all occurrences of [searchQuery] in [text].
+ */
+private fun highlightSearchMatches(
+    text: AnnotatedString,
+    searchQuery: String,
+    isCaseSensitive: Boolean,
+    highlightColor: Color = Color(0x66FFEB3B)
+): AnnotatedString {
+    if (searchQuery.isEmpty()) return text
+    val builder = AnnotatedString.Builder(text)
+    val raw = text.text
+    var start = 0
+    val step = searchQuery.length.coerceAtLeast(1)
+    while (start < raw.length) {
+        val found = raw.indexOf(searchQuery, start, ignoreCase = !isCaseSensitive)
+        if (found == -1) break
+        builder.addStyle(
+            SpanStyle(background = highlightColor),
+            found,
+            found + searchQuery.length
+        )
+        start = found + step
+    }
+    return builder.toAnnotatedString()
+}
+

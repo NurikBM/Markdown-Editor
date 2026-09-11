@@ -631,4 +631,38 @@ class EditorViewModelTest {
         assertEquals("another dog", viewModel.uiState.value.blocks[1].rawContent)
         assertEquals(0, viewModel.uiState.value.findMatches.size)
     }
+
+    @Test
+    fun `applyFormatting wraps text and creates undo snapshot`() = runTest(testDispatcher) {
+        val testDoc = MarkdownDocument(
+            id = "doc-format",
+            title = "Format Test",
+            blocks = listOf(
+                MarkdownBlock(id = BlockId("b1"), rawContent = "Hello World", type = BlockType.Paragraph)
+            )
+        )
+        coEvery { markdownRepository.getDocument("doc-format") } returns Result.success(testDoc)
+        viewModel.processIntent(EditorIntent.LoadDocument("doc-format"))
+        advanceUntilIdle()
+
+        viewModel.processIntent(EditorIntent.RequestFocus(BlockId("b1"), cursorPosition = 6, selectionEnd = 11))
+        advanceUntilIdle()
+
+        viewModel.processIntent(EditorIntent.ApplyFormatting(com.markdown.editor.domain.model.MarkdownFormatAction.BOLD))
+        advanceUntilIdle()
+
+        val updated = viewModel.uiState.value.blocks.first()
+        assertEquals("Hello **World**", updated.rawContent)
+        assertTrue(viewModel.uiState.value.canUndo)
+    }
+
+    @Test
+    fun `setTheme updates uiState appTheme`() = runTest(testDispatcher) {
+        assertEquals(com.markdown.editor.presentation.theme.AppTheme.SYSTEM, viewModel.uiState.value.appTheme)
+
+        viewModel.processIntent(EditorIntent.SetTheme(com.markdown.editor.presentation.theme.AppTheme.AMOLED))
+        advanceUntilIdle()
+
+        assertEquals(com.markdown.editor.presentation.theme.AppTheme.AMOLED, viewModel.uiState.value.appTheme)
+    }
 }

@@ -47,6 +47,8 @@ import com.markdown.editor.domain.syntax.RegexCodeSyntaxTokenizer
 import com.markdown.editor.presentation.editor.EditorIntent
 import com.markdown.editor.presentation.syntax.CodeSyntaxVisualTransformation
 
+import com.markdown.editor.presentation.ui.search.SearchHighlightVisualTransformation
+
 /**
  * Keyed block-level Composable ensuring isolated recomposition per [BlockId].
  * Uses a single, unified BasicTextField to prevent IME / keyboard destruction
@@ -58,7 +60,10 @@ fun MarkdownBlockItem(
     isFocused: Boolean,
     requestedCursorPosition: Int?,
     onIntent: (EditorIntent) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    searchQuery: String = "",
+    isCaseSensitive: Boolean = false,
+    activeMatchRange: IntRange? = null
 ) {
     val focusRequester = remember { FocusRequester() }
 
@@ -75,9 +80,13 @@ fun MarkdownBlockItem(
         )
     }
 
-    // Keep external updates (Undo, Redo, initial load) synchronized without fighting user's active keystrokes
+    // Tracks text sent from local user typing to distinguish active input from external ViewModel emissions
+    var lastSentText by remember(block.id) { mutableStateOf(block.rawContent) }
+
+    // Keep external updates (Undo, Redo, initial load, Find & Replace) synchronized without fighting user's active keystrokes
     LaunchedEffect(block.rawContent) {
-        if (block.rawContent != textFieldValue.text) {
+        if (block.rawContent != textFieldValue.text && block.rawContent != lastSentText) {
+            lastSentText = block.rawContent
             val clampedCursor = textFieldValue.selection.start.coerceIn(0, block.rawContent.length)
             textFieldValue = textFieldValue.copy(
                 text = block.rawContent,
@@ -108,7 +117,7 @@ fun MarkdownBlockItem(
     }
 
     val isDark = isSystemInDarkTheme()
-    val visualTransformation: VisualTransformation = remember(block.type, isDark) {
+    val baseVisualTransformation: VisualTransformation = remember(block.type, isDark) {
         if (block.type is BlockType.CodeBlock) {
             CodeSyntaxVisualTransformation(
                 language = (block.type as BlockType.CodeBlock).language,
@@ -117,6 +126,24 @@ fun MarkdownBlockItem(
             )
         } else {
             VisualTransformation.None
+        }
+    }
+
+    val visualTransformation: VisualTransformation = remember(
+        baseVisualTransformation,
+        searchQuery,
+        isCaseSensitive,
+        activeMatchRange
+    ) {
+        if (searchQuery.isNotEmpty()) {
+            SearchHighlightVisualTransformation(
+                searchQuery = searchQuery,
+                isCaseSensitive = isCaseSensitive,
+                activeMatchRange = activeMatchRange,
+                baseTransformation = baseVisualTransformation
+            )
+        } else {
+            baseVisualTransformation
         }
     }
 
@@ -169,7 +196,13 @@ fun MarkdownBlockItem(
     BasicTextField(
         value = textFieldValue,
         onValueChange = { newValue ->
-            handleValueChange(block, newValue, onIntent) { textFieldValue = it }
+            handleValueChange(
+                block = block,
+                newValue = newValue,
+                onIntent = onIntent,
+                updateState = { textFieldValue = it },
+                onTextSent = { lastSentText = it }
+            )
         },
         textStyle = textStyle,
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -179,12 +212,12 @@ fun MarkdownBlockItem(
             .padding(vertical = verticalPadding, horizontal = 16.dp)
             .focusRequester(focusRequester)
             .onFocusChanged { focusState ->
-                if (focusState.isFocused && !isFocused) {
-                    onIntent(EditorIntent.RequestFocus(block.id, textFieldValue.selection.start))
+                if (focusState.isFocused) {
+                    onIntent(EditorIntent.RequestFocus(block.id, textFieldValue.selection.start, textFieldValue.selection.end))
                 }
             }
             .onPreviewKeyEvent { event ->
-                handleKeyEvent(event, textFieldValue, block.id, onIntent)
+                handleKeyEvent(event, textFieldValue, block, onIntent)
             },
         decorationBox = { innerTextField ->
             when (block.type) {
@@ -247,7 +280,8 @@ private fun handleValueChange(
     block: MarkdownBlock,
     newValue: TextFieldValue,
     onIntent: (EditorIntent) -> Unit,
-    updateState: (TextFieldValue) -> Unit
+    updateState: (TextFieldValue) -> Unit,
+    onTextSent: (String) -> Unit
 ) {
     val canContainNewlines = block.type is BlockType.CodeBlock
     if (!canContainNewlines && newValue.text.contains('\n')) {
@@ -255,7 +289,9 @@ private fun handleValueChange(
         onIntent(EditorIntent.SplitBlock(block.id, newlineIndex))
     } else {
         updateState(newValue)
+        onTextSent(newValue.text)
         onIntent(EditorIntent.UpdateBlock(block.id, newValue.text))
+        onIntent(EditorIntent.RequestFocus(block.id, newValue.selection.start, newValue.selection.end))
     }
 }
 
@@ -265,16 +301,19 @@ private fun handleValueChange(
 private fun handleKeyEvent(
     event: androidx.compose.ui.input.key.KeyEvent,
     textFieldValue: TextFieldValue,
-    blockId: BlockId,
+    block: MarkdownBlock,
     onIntent: (EditorIntent) -> Unit
 ): Boolean {
     if (event.type == KeyEventType.KeyDown) {
         if (event.key == Key.Enter) {
-            onIntent(EditorIntent.SplitBlock(blockId, textFieldValue.selection.start))
-            return true
+            if (block.type !is BlockType.CodeBlock) {
+                onIntent(EditorIntent.SplitBlock(block.id, textFieldValue.selection.start))
+                return true
+            }
+            return false // Code block preserves Enter to insert newline
         }
         if (event.key == Key.Backspace && textFieldValue.selection.start == 0 && textFieldValue.selection.end == 0) {
-            onIntent(EditorIntent.MergeBlockWithPrevious(blockId))
+            onIntent(EditorIntent.MergeBlockWithPrevious(block.id))
             return true
         }
     }
