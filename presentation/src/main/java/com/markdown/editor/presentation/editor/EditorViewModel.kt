@@ -27,6 +27,7 @@ import com.markdown.editor.domain.usecase.RedoBlockUseCase
 import com.markdown.editor.domain.usecase.ReplaceInDocumentUseCase
 import com.markdown.editor.domain.usecase.SplitBlockUseCase
 import com.markdown.editor.domain.usecase.SplitResult
+import com.markdown.editor.domain.usecase.ToggleDocumentLockUseCase
 import com.markdown.editor.domain.usecase.UndoBlockUseCase
 import com.markdown.editor.presentation.mvi.MviViewModel
 import com.markdown.editor.presentation.theme.AppTheme
@@ -54,7 +55,8 @@ class EditorViewModel(
     private val findInDocumentUseCase: FindInDocumentUseCase = FindInDocumentUseCase(),
     private val replaceInDocumentUseCase: ReplaceInDocumentUseCase = ReplaceInDocumentUseCase(parser),
     private val applyFormattingUseCase: ApplyFormattingUseCase = ApplyFormattingUseCase(),
-    private val convertDocumentUseCase: ConvertDocumentUseCase? = null
+    private val convertDocumentUseCase: ConvertDocumentUseCase? = null,
+    private val toggleDocumentLockUseCase: ToggleDocumentLockUseCase? = null
 ) : MviViewModel<EditorUiState, EditorIntent, EditorEffect>(EditorUiState()) {
 
     private val undoStack = ArrayDeque<DocumentSnapshot>()
@@ -66,6 +68,14 @@ class EditorViewModel(
         viewModelScope.launch {
             markdownRepository.observeAllMetadata().collect { metadataList ->
                 updateState { copy(recentDocuments = metadataList) }
+                updateState {
+                    val currentMeta = metadataList.find { it.id == documentId }
+                    val currentLocked = currentMeta?.isLocked ?: isDocumentLocked
+                    copy(
+                        recentDocuments = metadataList,
+                        isDocumentLocked = currentLocked
+                    )
+                }
             }
         }
     }
@@ -92,6 +102,10 @@ class EditorViewModel(
             is EditorIntent.CreateNewDocument -> createNewDocument()
             is EditorIntent.DeleteDocument -> deleteDocument(intent.documentId)
             is EditorIntent.OpenExternalDocument -> openExternalDocument(intent.fileName, intent.content, intent.rawBytes)
+            is EditorIntent.SetDocumentLocked -> setDocumentLocked(intent.isLocked)
+            EditorIntent.UnlockDocumentSession -> unlockDocumentSession()
+            EditorIntent.LockDocumentSession -> lockDocumentSession()
+            EditorIntent.RequestBiometricUnlock -> requestBiometricUnlock()
             EditorIntent.FindNextMatch -> findNextMatch()
             EditorIntent.FindPreviousMatch -> findPreviousMatch()
             EditorIntent.ReplaceCurrentMatch -> replaceCurrentMatch()
@@ -342,6 +356,8 @@ class EditorViewModel(
                 markdownRepository.getDocument(documentId)
             }
 
+            val isLocked = uiState.value.recentDocuments.find { it.id == documentId }?.isLocked ?: false
+
             result.onSuccess { doc ->
                 val activeDoc = if (doc.blocks.isEmpty()) {
                     createInitialDocument(doc.id)
@@ -365,8 +381,14 @@ class EditorViewModel(
                         isDrawerOpen = false,
                         focusedBlockId = activeDoc.blocks.firstOrNull()?.id,
                         cursorPosition = 0,
-                        selectionEnd = 0
+                        selectionEnd = 0,
+                        isDocumentLocked = isLocked,
+                        isUnlockedForSession = false
                     )
+                }
+
+                if (isLocked) {
+                    sendEffect(EditorEffect.LaunchBiometricPrompt(title = "Unlock ${activeDoc.title}"))
                 }
 
                 if (doc.blocks.isEmpty()) {
@@ -396,6 +418,8 @@ class EditorViewModel(
                         focusedBlockId = defaultDoc.blocks.firstOrNull()?.id,
                         cursorPosition = 0,
                         selectionEnd = 0,
+                        isDocumentLocked = false,
+                        isUnlockedForSession = false,
                         errorMessage = null
                     )
                 }
@@ -826,7 +850,9 @@ class EditorViewModel(
                     isDrawerOpen = false,
                     focusedBlockId = initialDoc.blocks.firstOrNull()?.id,
                     cursorPosition = 0,
-                    selectionEnd = 0
+                    selectionEnd = 0,
+                    isDocumentLocked = false,
+                    isUnlockedForSession = false
                 )
             }
             sendEffect(EditorEffect.ShowToast("Created new document"))
@@ -964,7 +990,9 @@ class EditorViewModel(
                     isDrawerOpen = false,
                     focusedBlockId = cleanBlocks.firstOrNull()?.id,
                     cursorPosition = 0,
-                    selectionEnd = 0
+                    selectionEnd = 0,
+                    isDocumentLocked = false,
+                    isUnlockedForSession = false
                 )
             }
             if (warningNotice != null) {
@@ -972,6 +1000,44 @@ class EditorViewModel(
             } else {
                 sendEffect(EditorEffect.ShowToast("Opened $fileName"))
             }
+        }
+    }
+
+    private fun setDocumentLocked(isLocked: Boolean) {
+        val docId = uiState.value.documentId
+        if (docId.isEmpty()) return
+        viewModelScope.launch {
+            val result = withContext(dispatcherProvider.io) {
+                toggleDocumentLockUseCase?.invoke(docId, isLocked) ?: Result.success(Unit)
+            }
+            if (result.isSuccess) {
+                updateState {
+                    copy(
+                        isDocumentLocked = isLocked,
+                        isUnlockedForSession = isLocked
+                    )
+                }
+                val msg = if (isLocked) "Document locked with biometrics" else "Document lock removed"
+                sendEffect(EditorEffect.ShowToast(msg))
+            } else {
+                sendEffect(EditorEffect.ShowError("Failed to update lock status"))
+            }
+        }
+    }
+
+    private fun unlockDocumentSession() {
+        updateState { copy(isUnlockedForSession = true) }
+    }
+
+    private fun lockDocumentSession() {
+        if (uiState.value.isDocumentLocked) {
+            updateState { copy(isUnlockedForSession = false) }
+        }
+    }
+
+    private fun requestBiometricUnlock() {
+        if (uiState.value.isDocumentLocked && !uiState.value.isUnlockedForSession) {
+            sendEffect(EditorEffect.LaunchBiometricPrompt("Unlock ${uiState.value.title}"))
         }
     }
 }

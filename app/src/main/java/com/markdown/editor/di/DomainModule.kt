@@ -98,5 +98,12 @@ object DomainModule {
         documentConverter: com.markdown.editor.domain.converter.DocumentConverter
     ): com.markdown.editor.domain.usecase.ConvertDocumentUseCase =
         com.markdown.editor.domain.usecase.ConvertDocumentUseCase(documentConverter)
+
+    @Provides
+    @Singleton
+    fun provideToggleDocumentLockUseCase(
+        repository: com.markdown.editor.domain.repository.MarkdownRepository
+    ): com.markdown.editor.domain.usecase.ToggleDocumentLockUseCase =
+        com.markdown.editor.domain.usecase.ToggleDocumentLockUseCase(repository)
 }
 

@@ -5,40 +5,63 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.markdown.editor.presentation.editor.EditorEffect
 import com.markdown.editor.presentation.editor.EditorIntent
 import com.markdown.editor.presentation.editor.EditorUiState
 import com.markdown.editor.presentation.editor.EditorViewMode
 import com.markdown.editor.presentation.export.AndroidExportHelper
+import com.markdown.editor.presentation.security.BiometricSecurityHelper
 import com.markdown.editor.presentation.ui.block.BlockSearchHighlight
 import com.markdown.editor.presentation.ui.block.MarkdownBlockItem
 import com.markdown.editor.presentation.ui.drawer.DocumentDrawerSheet
@@ -50,6 +73,7 @@ import com.markdown.editor.presentation.ui.sync.rememberSynchronizedScroll
 import com.markdown.editor.presentation.ui.toc.TableOfContentsSheet
 import com.markdown.editor.presentation.ui.toolbar.MarkdownAccessoryToolbar
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 
 private val IMPORT_MIME_TYPES = arrayOf(
     "text/plain",
@@ -87,8 +111,21 @@ fun EditorScreen(
         enabled = state.viewMode == EditorViewMode.SPLIT_VIEW
     )
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                onIntent(EditorIntent.LockDocumentSession)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     SyncDrawerState(state.isDrawerOpen, drawerState, onIntent)
-    HandleEditorEffects(effects, snackbarHostState, editorListState, previewListState, context)
+    HandleEditorEffects(effects, snackbarHostState, editorListState, previewListState, context, onIntent)
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -158,8 +195,10 @@ private fun HandleEditorEffects(
     snackbarHostState: SnackbarHostState,
     editorListState: LazyListState,
     previewListState: LazyListState,
-    context: Context
+    context: Context,
+    onIntent: (EditorIntent) -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
     LaunchedEffect(effects) {
         effects.collect { effect ->
             when (effect) {
@@ -186,6 +225,28 @@ private fun HandleEditorEffects(
                         mimeType = effect.mimeType
                     )
                 }
+                is EditorEffect.LaunchBiometricPrompt -> {
+                    val activity = context as? FragmentActivity
+                    if (activity != null) {
+                        BiometricSecurityHelper().authenticate(
+                            activity = activity,
+                            title = effect.title,
+                            subtitle = "Authenticate to view protected note",
+                            onSuccess = {
+                                onIntent(EditorIntent.UnlockDocumentSession)
+                            },
+                            onError = { errorCode, errString ->
+                                if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
+                                    errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON
+                                ) {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Authentication error: $errString")
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -200,6 +261,8 @@ private fun EditorScaffold(
     previewListState: LazyListState,
     modifier: Modifier = Modifier
 ) {
+    val isLocked = state.isDocumentLocked && !state.isUnlockedForSession
+
     Scaffold(
         topBar = {
             EditorTopBar(state = state, onIntent = onIntent)
@@ -212,7 +275,7 @@ private fun EditorScaffold(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (state.isFindReplaceVisible) {
+            if (!isLocked && state.isFindReplaceVisible) {
                 FindReplaceBar(
                     state = FindReplaceState(
                         searchQuery = state.searchQuery,
@@ -239,21 +302,92 @@ private fun EditorScaffold(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                if (state.isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                } else {
-                    EditorContentArea(
-                        state = state,
-                        editorListState = editorListState,
-                        previewListState = previewListState,
-                        onIntent = onIntent
-                    )
+                when {
+                    state.isLoading -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    }
+                    isLocked -> {
+                        LockedDocumentView(
+                            title = state.title,
+                            onUnlockClick = { onIntent(EditorIntent.RequestBiometricUnlock) }
+                        )
+                    }
+                    else -> {
+                        EditorContentArea(
+                            state = state,
+                            editorListState = editorListState,
+                            previewListState = previewListState,
+                            onIntent = onIntent
+                        )
+                    }
                 }
             }
 
-            if (state.viewMode != EditorViewMode.PREVIEW_ONLY) {
+            if (!isLocked && state.viewMode != EditorViewMode.PREVIEW_ONLY) {
                 MarkdownAccessoryToolbar(onIntent = onIntent)
             }
+        }
+    }
+}
+
+@Composable
+private fun LockedDocumentView(
+    title: String,
+    onUnlockClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            modifier = Modifier.size(80.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = "Protected Note",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(44.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Protected Note",
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "\"${title.ifEmpty { "Untitled" }}\" is locked. Authenticate using biometrics or device credentials to view.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(28.dp))
+
+        Button(
+            onClick = onUnlockClick,
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Fingerprint,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Unlock Note")
         }
     }
 }

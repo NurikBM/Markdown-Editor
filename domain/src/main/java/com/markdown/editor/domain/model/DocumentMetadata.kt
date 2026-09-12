@@ -10,6 +10,7 @@ data class DocumentMetadata(
     val documentUri: String? = null,
     val lastAccessedTimestamp: Long = System.currentTimeMillis(),
     val lastModifiedTimestamp: Long = System.currentTimeMillis(),
-    val isUnlinked: Boolean = false
+    val isUnlinked: Boolean = false,
+    val isLocked: Boolean = false
 )
 

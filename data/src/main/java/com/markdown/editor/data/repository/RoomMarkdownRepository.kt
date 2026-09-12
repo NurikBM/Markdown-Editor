@@ -92,7 +92,8 @@ class RoomMarkdownRepository(
                 documentUri = metadata?.documentUri,
                 lastAccessedTimestamp = metadata?.lastAccessedTimestamp ?: now,
                 lastModifiedTimestamp = now,
-                isUnlinked = metadata?.isUnlinked ?: false
+                isUnlinked = metadata?.isUnlinked ?: false,
+                isLocked = metadata?.isLocked ?: false
             )
             documentDao.upsert(entity)
 
@@ -133,6 +134,18 @@ class RoomMarkdownRepository(
         }
     }
 
+    override suspend fun updateLockStatus(
+        id: String,
+        isLocked: Boolean
+    ): Result<Unit> = withContext(dispatcherProvider.io) {
+        try {
+            documentDao.updateLockStatus(id, isLocked)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun DocumentMetadataEntity.toDomain(): DocumentMetadata = DocumentMetadata(
         id = documentId,
         title = title,
@@ -140,7 +153,8 @@ class RoomMarkdownRepository(
         documentUri = documentUri,
         lastAccessedTimestamp = lastAccessedTimestamp,
         lastModifiedTimestamp = lastModifiedTimestamp,
-        isUnlinked = isUnlinked
+        isUnlinked = isUnlinked,
+        isLocked = isLocked
     )
 
     private fun BlockType.toTypeString(): String = when (this) {

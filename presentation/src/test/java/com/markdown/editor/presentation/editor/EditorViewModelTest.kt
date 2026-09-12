@@ -14,6 +14,7 @@ import com.markdown.editor.domain.repository.SnapshotRepository
 import com.markdown.editor.domain.usecase.MergeBlockUseCase
 import com.markdown.editor.domain.usecase.RedoBlockUseCase
 import com.markdown.editor.domain.usecase.SplitBlockUseCase
+import com.markdown.editor.domain.usecase.ToggleDocumentLockUseCase
 import com.markdown.editor.domain.usecase.UndoBlockUseCase
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -61,6 +62,7 @@ class EditorViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val exportHtmlUseCase = com.markdown.editor.domain.usecase.ExportHtmlUseCase(testDispatcher)
+    private val toggleDocumentLockUseCase: ToggleDocumentLockUseCase = mockk(relaxed = true)
 
     private val dispatcherProvider = object : DispatcherProvider {
         override val main: CoroutineDispatcher = testDispatcher
@@ -77,6 +79,7 @@ class EditorViewModelTest {
         Dispatchers.setMain(testDispatcher)
         coEvery { markdownRepository.saveDocument(any(), any()) } returns Result.success(Unit)
         coEvery { snapshotRepository.recordSnapshot(any()) } returns Result.success(Unit)
+        coEvery { toggleDocumentLockUseCase(any(), any()) } returns Result.success(Unit)
 
         viewModel = EditorViewModel(
             markdownRepository = markdownRepository,
@@ -88,7 +91,8 @@ class EditorViewModelTest {
             diffCalculator = diffCalculator,
             parser = parser,
             dispatcherProvider = dispatcherProvider,
-            exportHtmlUseCase = exportHtmlUseCase
+            exportHtmlUseCase = exportHtmlUseCase,
+            toggleDocumentLockUseCase = toggleDocumentLockUseCase
         )
     }
 
@@ -840,6 +844,65 @@ class EditorViewModelTest {
             val effect = awaitItem()
             assertTrue(effect is EditorEffect.ShowError)
             assertTrue((effect as EditorEffect.ShowError).message.contains("binary data"))
+        }
+    }
+
+    @Test
+    fun `SetDocumentLocked updates lock state and persists via use case`() = runTest(testDispatcher) {
+        viewModel.processIntent(EditorIntent.CreateNewDocument)
+        advanceUntilIdle()
+
+        viewModel.processIntent(EditorIntent.SetDocumentLocked(true))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isDocumentLocked)
+        assertTrue(viewModel.uiState.value.isUnlockedForSession)
+        coVerify { toggleDocumentLockUseCase(viewModel.uiState.value.documentId, true) }
+    }
+
+    @Test
+    fun `UnlockDocumentSession sets isUnlockedForSession to true`() = runTest(testDispatcher) {
+        viewModel.processIntent(EditorIntent.UnlockDocumentSession)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isUnlockedForSession)
+    }
+
+    @Test
+    fun `LockDocumentSession sets isUnlockedForSession to false when locked`() = runTest(testDispatcher) {
+        viewModel.processIntent(EditorIntent.CreateNewDocument)
+        advanceUntilIdle()
+
+        viewModel.processIntent(EditorIntent.SetDocumentLocked(true))
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isUnlockedForSession)
+
+        viewModel.processIntent(EditorIntent.LockDocumentSession)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isUnlockedForSession)
+    }
+
+    @Test
+    fun `RequestBiometricUnlock emits LaunchBiometricPrompt when locked and not unlocked for session`() = runTest(testDispatcher) {
+        viewModel.processIntent(EditorIntent.CreateNewDocument)
+        advanceUntilIdle()
+
+        viewModel.processIntent(EditorIntent.SetDocumentLocked(true))
+        advanceUntilIdle()
+
+        viewModel.processIntent(EditorIntent.LockDocumentSession)
+        advanceUntilIdle()
+
+        viewModel.uiEffect.test {
+            assertEquals("Created new document", (awaitItem() as EditorEffect.ShowToast).message)
+            assertEquals("Document locked with biometrics", (awaitItem() as EditorEffect.ShowToast).message)
+
+            viewModel.processIntent(EditorIntent.RequestBiometricUnlock)
+            advanceUntilIdle()
+
+            val effect = awaitItem()
+            assertTrue(effect is EditorEffect.LaunchBiometricPrompt)
         }
     }
 }

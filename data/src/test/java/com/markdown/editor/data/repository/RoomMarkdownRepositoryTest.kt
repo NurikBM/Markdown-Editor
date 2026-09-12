@@ -193,5 +193,12 @@ class RoomMarkdownRepositoryTest {
         assertTrue(result.isSuccess)
         coVerify { documentDao.updateLastAccessed("doc-1", timestamp) }
     }
+
+    @Test
+    fun `updateLockStatus delegates to documentDao`() = runTest(testDispatcher) {
+        val result = repository.updateLockStatus("doc-1", true)
+        assertTrue(result.isSuccess)
+        coVerify { documentDao.updateLockStatus("doc-1", true) }
+    }
 }
 

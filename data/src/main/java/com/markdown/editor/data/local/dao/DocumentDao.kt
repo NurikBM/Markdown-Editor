@@ -35,5 +35,8 @@ interface DocumentDao {
 
     @Query("UPDATE documents SET isUnlinked = 1 WHERE documentId = :id")
     suspend fun markAsUnlinked(id: String)
+
+    @Query("UPDATE documents SET isLocked = :isLocked WHERE documentId = :id")
+    suspend fun updateLockStatus(id: String, isLocked: Boolean)
 }
 

@@ -17,6 +17,8 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Nightlife
@@ -260,6 +262,14 @@ private fun EditorDesktopActions(
             )
         }
     }
+
+    IconButton(onClick = { onIntent(EditorIntent.SetDocumentLocked(!state.isDocumentLocked)) }) {
+        Icon(
+            imageVector = if (state.isDocumentLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+            contentDescription = if (state.isDocumentLocked) "Remove lock" else "Lock with biometrics",
+            tint = if (state.isDocumentLocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
+    }
 }
 
 @Composable
@@ -279,11 +289,39 @@ private fun EditorOverflowMenu(
             HorizontalDivider()
         }
 
+        LockActionMenuItem(
+            isLocked = state.isDocumentLocked,
+            onIntent = onIntent,
+            onDismiss = onDismiss
+        )
+        HorizontalDivider()
+
         ExportActionMenuItems(onIntent = onIntent, onDismiss = onDismiss)
         HorizontalDivider()
 
         ThemeActionMenuItems(currentTheme = state.appTheme, onIntent = onIntent, onDismiss = onDismiss)
     }
+}
+
+@Composable
+private fun LockActionMenuItem(
+    isLocked: Boolean,
+    onIntent: (EditorIntent) -> Unit,
+    onDismiss: () -> Unit
+) {
+    DropdownMenuItem(
+        text = { Text(if (isLocked) "Remove Lock Protection" else "Protect with Biometrics") },
+        leadingIcon = {
+            Icon(
+                imageVector = if (isLocked) Icons.Default.LockOpen else Icons.Default.Lock,
+                contentDescription = null
+            )
+        },
+        onClick = {
+            onDismiss()
+            onIntent(EditorIntent.SetDocumentLocked(!isLocked))
+        }
+    )
 }
 
 @Composable
