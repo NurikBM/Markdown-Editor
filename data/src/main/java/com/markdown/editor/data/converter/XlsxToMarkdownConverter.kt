@@ -1,10 +1,10 @@
 package com.markdown.editor.data.converter
 
 import com.markdown.editor.domain.converter.ConvertedDocument
+import com.markdown.editor.domain.converter.DocumentConverter
 import com.markdown.editor.domain.error.DomainError
 import com.markdown.editor.domain.error.asException
 import org.w3c.dom.Element
-import org.w3c.dom.Node
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.util.zip.ZipInputStream
@@ -14,9 +14,17 @@ import javax.xml.parsers.DocumentBuilderFactory
  * Converter extracting structured Markdown tables from Microsoft Excel (.xlsx) workbooks.
  * Excel files are Office OpenXML ZIP archives containing shared strings and sheet data.
  */
-class XlsxToMarkdownConverter {
+class XlsxToMarkdownConverter : DocumentConverter {
 
-    fun convert(fileName: String, inputStream: InputStream): ConvertedDocument {
+    companion object {
+        private const val WORKSHEET_ENTRY_PREFIX = "xl/worksheets/sheet"
+    }
+
+    override fun canConvert(extension: String): Boolean {
+        return extension.equals("xlsx", ignoreCase = true) || extension.endsWith(".xlsx", ignoreCase = true)
+    }
+
+    override suspend fun convert(fileName: String, inputStream: InputStream): ConvertedDocument {
         val title = fileName.removeSuffix(".xlsx").removeSuffix(".XLSX")
         val zipEntries = extractZipEntries(inputStream)
 
@@ -24,7 +32,7 @@ class XlsxToMarkdownConverter {
         val sheetNames = parseSheetNames(zipEntries["xl/workbook.xml"])
 
         val sheetEntries = zipEntries.keys
-            .filter { it.startsWith("xl/worksheets/sheet") && it.endsWith(".xml") }
+            .filter { it.startsWith(WORKSHEET_ENTRY_PREFIX) && it.endsWith(".xml") }
             .sortedBy { extractSheetIndex(it) }
 
         if (sheetEntries.isEmpty()) {
@@ -69,7 +77,7 @@ class XlsxToMarkdownConverter {
         while (entry != null) {
             val name = entry.name
             if (name == "xl/sharedStrings.xml" || name == "xl/workbook.xml" ||
-                (name.startsWith("xl/worksheets/sheet") && name.endsWith(".xml"))
+                (name.startsWith(WORKSHEET_ENTRY_PREFIX) && name.endsWith(".xml"))
             ) {
                 map[name] = zip.readBytes()
             }
@@ -128,7 +136,7 @@ class XlsxToMarkdownConverter {
     }
 
     private fun extractSheetIndex(sheetKey: String): Int {
-        val numberPart = sheetKey.removePrefix("xl/worksheets/sheet").removeSuffix(".xml")
+        val numberPart = sheetKey.removePrefix(WORKSHEET_ENTRY_PREFIX).removeSuffix(".xml")
         return numberPart.toIntOrNull() ?: 0
     }
 
@@ -217,4 +225,3 @@ class XlsxToMarkdownConverter {
         return (result - 1).coerceAtLeast(0)
     }
 }
-

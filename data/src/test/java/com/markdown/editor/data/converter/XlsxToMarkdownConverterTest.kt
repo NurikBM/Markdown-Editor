@@ -1,5 +1,6 @@
 package com.markdown.editor.data.converter
 
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -12,7 +13,7 @@ class XlsxToMarkdownConverterTest {
     private val converter = XlsxToMarkdownConverter()
 
     @Test
-    fun `convert parses shared strings and sheet data into Markdown table`() {
+    fun `convert parses shared strings and sheet data into Markdown table`() = runTest {
         val sharedStringsXml = """
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="4" uniqueCount="4">
@@ -64,4 +65,3 @@ class XlsxToMarkdownConverterTest {
         assertTrue(result.markdownContent.contains("| Banana | 0.80 |"))
     }
 }
-

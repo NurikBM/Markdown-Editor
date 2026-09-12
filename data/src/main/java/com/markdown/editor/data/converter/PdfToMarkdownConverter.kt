@@ -2,6 +2,7 @@ package com.markdown.editor.data.converter
 
 import android.content.Context
 import com.markdown.editor.domain.converter.ConvertedDocument
+import com.markdown.editor.domain.converter.DocumentConverter
 import com.markdown.editor.domain.error.DomainError
 import com.markdown.editor.domain.error.asException
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
@@ -20,7 +21,7 @@ import java.io.Writer
  */
 class PdfToMarkdownConverter(
     private val context: Context
-) {
+) : DocumentConverter {
 
     @Volatile
     private var isInitialized = false
@@ -36,19 +37,14 @@ class PdfToMarkdownConverter(
         }
     }
 
-    fun convert(fileName: String, inputStream: InputStream): ConvertedDocument {
+    override fun canConvert(extension: String): Boolean {
+        return extension.equals("pdf", ignoreCase = true) || extension.endsWith(".pdf", ignoreCase = true)
+    }
+
+    override suspend fun convert(fileName: String, inputStream: InputStream): ConvertedDocument {
         ensureInitialized()
         val title = fileName.substringBeforeLast('.')
-
-        val document = try {
-            PDDocument.load(inputStream)
-        } catch (e: Exception) {
-            val message = e.message ?: ""
-            if (message.contains("password", ignoreCase = true) || message.contains("encrypted", ignoreCase = true)) {
-                throw DomainError.Conversion.PasswordProtected(fileName).asException()
-            }
-            throw DomainError.Conversion.CorruptedFile(fileName, "Failed to parse PDF: ${e.message}").asException()
-        }
+        val document = loadPdfDocument(fileName, inputStream)
 
         document.use { doc ->
             if (doc.isEncrypted) {
@@ -60,32 +56,7 @@ class PdfToMarkdownConverter(
                 throw DomainError.Conversion.EmptyDocument(fileName).asException()
             }
 
-            val fullDocumentMarkdown = StringBuilder()
-
-            for (pageIndex in 1..numPages) {
-                val stripper = MarkdownPdfStripper()
-                stripper.sortByPosition = true
-                stripper.startPage = pageIndex
-                stripper.endPage = pageIndex
-
-                val baos = ByteArrayOutputStream()
-                val writer = OutputStreamWriter(baos, Charsets.UTF_8)
-                stripper.writeText(doc, writer)
-                writer.flush()
-
-                val pageMarkdown = baos.toString(Charsets.UTF_8.name()).trim()
-                if (pageMarkdown.isNotEmpty()) {
-                    if (numPages > 1) {
-                        if (pageIndex > 1) {
-                            fullDocumentMarkdown.append("\n\n---\n\n")
-                        }
-                        fullDocumentMarkdown.append("## Page ").append(pageIndex).append("\n\n")
-                    }
-                    fullDocumentMarkdown.append(pageMarkdown)
-                }
-            }
-
-            val finalContent = fullDocumentMarkdown.toString().trim()
+            val finalContent = buildMultiPageMarkdown(doc, numPages)
             if (finalContent.isEmpty()) {
                 return ConvertedDocument(
                     title = title,
@@ -104,18 +75,56 @@ class PdfToMarkdownConverter(
         }
     }
 
+    private fun loadPdfDocument(fileName: String, inputStream: InputStream): PDDocument {
+        return try {
+            PDDocument.load(inputStream)
+        } catch (e: Exception) {
+            val message = e.message ?: ""
+            if (message.contains("password", ignoreCase = true) || message.contains("encrypted", ignoreCase = true)) {
+                throw DomainError.Conversion.PasswordProtected(fileName).asException()
+            }
+            throw DomainError.Conversion.CorruptedFile(fileName, "Failed to parse PDF: ${e.message}").asException()
+        }
+    }
+
+    private fun extractPageMarkdown(doc: PDDocument, pageIndex: Int): String {
+        val stripper = MarkdownPdfStripper().apply {
+            sortByPosition = true
+            startPage = pageIndex
+            endPage = pageIndex
+        }
+        val baos = ByteArrayOutputStream()
+        val writer = OutputStreamWriter(baos, Charsets.UTF_8)
+        stripper.writeText(doc, writer)
+        writer.flush()
+        return baos.toString(Charsets.UTF_8.name()).trim()
+    }
+
+    private fun buildMultiPageMarkdown(doc: PDDocument, numPages: Int): String {
+        val fullDocumentMarkdown = StringBuilder()
+        for (pageIndex in 1..numPages) {
+            val pageMarkdown = extractPageMarkdown(doc, pageIndex)
+            if (pageMarkdown.isEmpty()) continue
+
+            if (numPages > 1) {
+                if (pageIndex > 1) {
+                    fullDocumentMarkdown.append("\n\n---\n\n")
+                }
+                fullDocumentMarkdown.append("## Page ").append(pageIndex).append("\n\n")
+            }
+            fullDocumentMarkdown.append(pageMarkdown)
+        }
+        return fullDocumentMarkdown.toString().trim()
+    }
+
     /**
      * Custom text stripper examining font size, font style, and line spacing
      * to reconstruct Markdown blocks and inline formatting.
      */
     private class MarkdownPdfStripper : PDFTextStripper() {
 
-        private val lineBuffer = StringBuilder()
         private val outputBuilder = StringBuilder()
-        private var currentLinePositions = mutableListOf<TextPosition>()
-
-        // Document or page level base font size (modal size)
-        private var baseFontSize = 11.0f
+        private val currentLinePositions = mutableListOf<TextPosition>()
 
         override fun writeString(text: String, textPositions: List<TextPosition>) {
             if (textPositions.isEmpty()) return
@@ -132,7 +141,6 @@ class PdfToMarkdownConverter(
 
         override fun writeText(doc: PDDocument, outputStream: Writer) {
             super.writeText(doc, outputStream)
-            // Process any trailing line
             if (currentLinePositions.isNotEmpty()) {
                 processLine(currentLinePositions)
                 currentLinePositions.clear()
@@ -143,7 +151,6 @@ class PdfToMarkdownConverter(
         private fun processLine(positions: List<TextPosition>) {
             if (positions.isEmpty()) return
 
-            // Compute dominant font size for this line
             val avgFontSize = positions.map { it.fontSizeInPt }.average().toFloat()
             val lineRawText = positions.joinToString("") { it.unicode }.trim()
             if (lineRawText.isEmpty()) return
@@ -153,7 +160,6 @@ class PdfToMarkdownConverter(
             val isHeading2 = isShortLine && avgFontSize in 14.5f..17.9f
             val isHeading3 = isShortLine && avgFontSize in 12.5f..14.4f
 
-            // Format inline runs (bold, italic)
             val formattedLine = formatInlineRuns(positions)
 
             val bulletRegex = Regex("""^([•–—▪*\-]|\d+[\.\)])\s+(.*)$""")
@@ -184,7 +190,7 @@ class PdfToMarkdownConverter(
 
         private fun formatInlineRuns(positions: List<TextPosition>): String {
             val sb = StringBuilder()
-            var currentRun = StringBuilder()
+            val currentRun = StringBuilder()
             var currentIsBold = false
             var currentIsItalic = false
 
@@ -202,10 +208,12 @@ class PdfToMarkdownConverter(
                     return
                 }
 
-                var formatted = trimmed
-                if (currentIsBold && currentIsItalic) formatted = "***$formatted***"
-                else if (currentIsBold) formatted = "**$formatted**"
-                else if (currentIsItalic) formatted = "*$formatted*"
+                val formatted = when {
+                    currentIsBold && currentIsItalic -> "***$trimmed***"
+                    currentIsBold -> "**$trimmed**"
+                    currentIsItalic -> "*$trimmed*"
+                    else -> trimmed
+                }
 
                 sb.append(leading).append(formatted).append(trailing)
             }
@@ -235,11 +243,7 @@ class PdfToMarkdownConverter(
             ) return true
 
             val descriptor = font.fontDescriptor
-            if (descriptor != null) {
-                if (descriptor.isForceBold) return true
-                if (descriptor.fontWeight >= 700) return true
-            }
-            return false
+            return descriptor != null && (descriptor.isForceBold || descriptor.fontWeight >= 700)
         }
 
         private fun isItalic(pos: TextPosition): Boolean {
@@ -250,11 +254,7 @@ class PdfToMarkdownConverter(
             ) return true
 
             val descriptor = font.fontDescriptor
-            if (descriptor != null) {
-                if (descriptor.isItalic) return true
-            }
-            return false
+            return descriptor != null && descriptor.isItalic
         }
     }
 }
-

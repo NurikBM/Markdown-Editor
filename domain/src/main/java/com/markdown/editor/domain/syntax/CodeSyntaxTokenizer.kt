@@ -3,7 +3,7 @@ package com.markdown.editor.domain.syntax
 /**
  * Contract for tokenizing source code into syntax tokens for high-performance syntax highlighting.
  */
-interface CodeSyntaxTokenizer {
+fun interface CodeSyntaxTokenizer {
     /**
      * Tokenizes [code] for the given [language].
      *
@@ -13,4 +13,3 @@ interface CodeSyntaxTokenizer {
      */
     fun tokenize(code: String, language: String?): List<SyntaxToken>
 }
-

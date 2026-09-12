@@ -1,5 +1,6 @@
 package com.markdown.editor.data.converter
 
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -12,7 +13,7 @@ class DocxToMarkdownConverterTest {
     private val converter = DocxToMarkdownConverter()
 
     @Test
-    fun `convert parses headings paragraphs bold italic and tables from docx xml`() {
+    fun `convert parses headings paragraphs bold italic and tables from docx xml`() = runTest {
         val documentXml = """
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">

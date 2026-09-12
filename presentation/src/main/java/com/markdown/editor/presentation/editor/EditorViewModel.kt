@@ -863,7 +863,7 @@ class EditorViewModel(
         }
     }
 
-    private fun openExternalDocument(fileName: String, content: String, rawBytes: ByteArray? = null) {
+    private fun validateExternalFile(fileName: String, content: String): String? {
         val lowerName = fileName.lowercase()
         val extension = lowerName.substringAfterLast('.', "")
 
@@ -872,53 +872,67 @@ class EditorViewModel(
 
         val isConvertible = convertDocumentUseCase?.canConvert(fileName) == true
 
-        when {
-            imageExtensions.contains(extension) -> {
-                sendEffect(EditorEffect.ShowError("Images cannot be opened as text. Please select a Markdown (.md) or document file."))
-                return
-            }
-            otherBinaryExtensions.contains(extension) -> {
-                sendEffect(EditorEffect.ShowError("Binary files cannot be opened as text. Please select a Markdown (.md) or document file."))
-                return
-            }
-            !isConvertible && extension in setOf("doc", "xls", "ppt") -> {
-                sendEffect(EditorEffect.ShowError("Legacy office formats (.${extension}) are not supported. Please use modern .docx or .xlsx files."))
-                return
-            }
-            !isConvertible && content.take(4096).contains('\u0000') -> {
-                sendEffect(EditorEffect.ShowError("This file contains binary data and cannot be opened as text."))
-                return
-            }
+        return when {
+            imageExtensions.contains(extension) ->
+                "Images cannot be opened as text. Please select a Markdown (.md) or document file."
+            otherBinaryExtensions.contains(extension) ->
+                "Binary files cannot be opened as text. Please select a Markdown (.md) or document file."
+            !isConvertible && extension in setOf("doc", "xls", "ppt") ->
+                "Legacy office formats (.${extension}) are not supported. Please use modern .docx or .xlsx files."
+            !isConvertible && content.take(4096).contains('\u0000') ->
+                "This file contains binary data and cannot be opened as text."
+            else -> null
         }
+    }
+
+    private data class EffectiveContent(
+        val title: String,
+        val content: String,
+        val warningNotice: String?
+    )
+
+    private suspend fun resolveEffectiveContent(
+        fileName: String,
+        content: String,
+        rawBytes: ByteArray?,
+        isConvertible: Boolean
+    ): EffectiveContent {
+        if (!isConvertible) {
+            val title = fileName.removeSuffix(".md").removeSuffix(".markdown").removeSuffix(".txt")
+            return EffectiveContent(title, content, null)
+        }
+        val converter = convertDocumentUseCase ?: error("Converter unavailable")
+        val inputStream = rawBytes?.inputStream() ?: content.byteInputStream(Charsets.UTF_8)
+        val converted = withContext(dispatcherProvider.io) {
+            converter(fileName, inputStream)
+        }
+        return EffectiveContent(converted.title, converted.markdownContent, converted.warningMessage)
+    }
+
+    private fun openExternalDocument(fileName: String, content: String, rawBytes: ByteArray? = null) {
+        val validationError = validateExternalFile(fileName, content)
+        if (validationError != null) {
+            sendEffect(EditorEffect.ShowError(validationError))
+            return
+        }
+
+        val isConvertible = convertDocumentUseCase?.canConvert(fileName) == true
 
         viewModelScope.launch {
             typingJob?.cancel()
             updateState { copy(isLoading = true) }
 
-            val inputStream = rawBytes?.inputStream() ?: content.byteInputStream(Charsets.UTF_8)
-            val effectiveContent: String
-            val effectiveTitle: String
-            var warningNotice: String? = null
-
-            if (isConvertible) {
-                try {
-                    val converted = withContext(dispatcherProvider.io) {
-                        convertDocumentUseCase(fileName, inputStream)
-                    }
-                    effectiveContent = converted.markdownContent
-                    effectiveTitle = converted.title
-                    if (converted.warningMessage != null) {
-                        warningNotice = converted.warningMessage
-                    }
-                } catch (e: Exception) {
-                    updateState { copy(isLoading = false) }
-                    sendEffect(EditorEffect.ShowError("Conversion failed: ${e.message ?: "Unsupported structure"}"))
-                    return@launch
-                }
-            } else {
-                effectiveContent = content
-                effectiveTitle = fileName.removeSuffix(".md").removeSuffix(".markdown").removeSuffix(".txt")
+            val effective = try {
+                resolveEffectiveContent(fileName, content, rawBytes, isConvertible)
+            } catch (e: Exception) {
+                updateState { copy(isLoading = false) }
+                sendEffect(EditorEffect.ShowError("Conversion failed: ${e.message ?: "Unsupported structure"}"))
+                return@launch
             }
+
+            val effectiveContent = effective.content
+            val effectiveTitle = effective.title
+            val warningNotice = effective.warningNotice
 
             val docId = "doc_${System.currentTimeMillis()}"
             val parsedDoc = withContext(dispatcherProvider.diffAndParsing) {

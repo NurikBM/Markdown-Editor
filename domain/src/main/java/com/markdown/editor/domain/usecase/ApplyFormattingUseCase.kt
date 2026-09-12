@@ -33,12 +33,12 @@ class ApplyFormattingUseCase {
             MarkdownFormatAction.STRIKETHROUGH -> applyWrap(content, start, end, selectedText, "~~", "~~")
             MarkdownFormatAction.INLINE_CODE -> applyWrap(content, start, end, selectedText, "`", "`")
             MarkdownFormatAction.CODE_BLOCK -> applyCodeBlock(content, start, end, selectedText)
-            MarkdownFormatAction.QUOTE -> applyLinePrefix(content, start, end, "> ")
-            MarkdownFormatAction.BULLET_LIST -> applyLinePrefix(content, start, end, "- ")
-            MarkdownFormatAction.NUMBERED_LIST -> applyNumberedList(content, start, end)
-            MarkdownFormatAction.HEADING -> cycleHeading(content, start, end)
+            MarkdownFormatAction.QUOTE -> applyLinePrefix(content, start, "> ")
+            MarkdownFormatAction.BULLET_LIST -> applyLinePrefix(content, start, "- ")
+            MarkdownFormatAction.NUMBERED_LIST -> applyNumberedList(content, start)
+            MarkdownFormatAction.HEADING -> cycleHeading(content, start)
             MarkdownFormatAction.LINK -> applyLink(content, start, end, selectedText)
-            MarkdownFormatAction.HORIZONTAL_RULE -> applyHorizontalRule(content, start, end)
+            MarkdownFormatAction.HORIZONTAL_RULE -> applyHorizontalRule()
         }
     }
 
@@ -74,17 +74,17 @@ class ApplyFormattingUseCase {
             return FormattingResult(newContent, start, start + unwrappedText.length)
         }
 
-        if (start == end) {
+        return if (start == end) {
             // Nothing selected: insert prefix + suffix and place cursor between them
             val newContent = content.substring(0, start) + prefix + suffix + content.substring(end)
             val newCursor = start + pLen
-            return FormattingResult(newContent, newCursor, newCursor)
+            FormattingResult(newContent, newCursor, newCursor)
         } else {
             // Wrap selected text
             val newContent = content.substring(0, start) + prefix + selectedText + suffix + content.substring(end)
             val newStart = start + pLen
             val newEnd = newStart + selectedText.length
-            return FormattingResult(newContent, newStart, newEnd)
+            FormattingResult(newContent, newStart, newEnd)
         }
     }
 
@@ -94,22 +94,21 @@ class ApplyFormattingUseCase {
         end: Int,
         selectedText: String
     ): FormattingResult {
-        if (start == end) {
+        return if (start == end) {
             val prefix = if (content.isEmpty() || content.endsWith("\n")) "```\n" else "\n```\n"
             val suffix = "\n```"
             val newContent = content.substring(0, start) + prefix + suffix + content.substring(end)
             val newCursor = start + prefix.length
-            return FormattingResult(newContent, newCursor, newCursor)
+            FormattingResult(newContent, newCursor, newCursor)
         } else {
             val newContent = content.substring(0, start) + "```\n$selectedText\n```" + content.substring(end)
-            return FormattingResult(newContent, start + 4, start + 4 + selectedText.length)
+            FormattingResult(newContent, start + 4, start + 4 + selectedText.length)
         }
     }
 
     private fun applyLinePrefix(
         content: String,
         start: Int,
-        end: Int,
         prefix: String
     ): FormattingResult {
         val trimmed = content.trimStart()
@@ -137,8 +136,7 @@ class ApplyFormattingUseCase {
 
     private fun applyNumberedList(
         content: String,
-        start: Int,
-        end: Int
+        start: Int
     ): FormattingResult {
         val trimmed = content.trimStart()
         val leadingSpaces = content.takeWhile { it == ' ' }
@@ -163,8 +161,7 @@ class ApplyFormattingUseCase {
 
     private fun cycleHeading(
         content: String,
-        start: Int,
-        end: Int
+        start: Int
     ): FormattingResult {
         val headingRegex = Regex("^(#{1,6})\\s*")
         val match = headingRegex.find(content)
@@ -206,13 +203,8 @@ class ApplyFormattingUseCase {
         }
     }
 
-    private fun applyHorizontalRule(
-        content: String,
-        start: Int,
-        end: Int
-    ): FormattingResult {
+    private fun applyHorizontalRule(): FormattingResult {
         val newContent = "---"
         return FormattingResult(newContent, 3, 3)
     }
 }
-

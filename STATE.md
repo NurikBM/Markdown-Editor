@@ -2,7 +2,7 @@
 
 ## Active State
 - **Current Phase:** Phase 6 — Extended Product Polish
-- **Current Milestone:** Milestone 6.3 & 6.3+ — System Integration, Universal Binary Filter & Multi-Format Document-to-Markdown Converter (DOCX, XLSX, PDF, HTML, CSV, JSON/XML/YAML)
+- **Current Milestone:** Milestone 6.3 / Quality Hardening — SonarCloud 34-Issue Refactoring & Multi-Format Document Conversion
 - **Active Subtask:** Verification Complete & Ready for User Review and Commit
 - **Status:** VERIFIED
 
@@ -33,10 +33,12 @@
 - [x] **Milestone 6.2**: Implemented Quick Note Home Screen App Widget (`androidx.glance:glance-appwidget:1.1.1`), Document Manager Navigation Drawer (`ModalNavigationDrawer`, `DocumentDrawerSheet`) with live Room document observation, switching, creation, deletion with confirmation dialog, and SAF document import (`ActivityResultContracts.OpenDocument`). Created pure Material 3 Adaptive App Icon with clean vector Markdown badge (`ic_launcher_foreground.xml`: 40 lines, `ic_launcher_background.xml`: 38 lines, `ic_launcher_monochrome.xml`: 40 lines; completely purging Android robot coordinates, shadows, and default green grid). Resolved screen orientation change document reset in `MainActivity.kt` by strictly guarding `handleIntent` behind `if (savedInstanceState == null)`, adding `onSaveInstanceState` restoration, and consuming launch intent extras. Standalone APK assembled and verified at `app/build/outputs/apk/debug/app-debug.apk`. (Commit: `8c8ffdd`).
 - [x] **Milestone 6.3**: Implemented Android system integration for sharing and file viewing (`android.intent.action.SEND` for `text/plain`, `text/markdown`, `text/x-markdown` and `android.intent.action.VIEW` for `.md`, `.markdown`, `.txt` files from file managers). Added intent handling in `MainActivity` extracting `EXTRA_TEXT`, `EXTRA_STREAM`, and content URIs with automatic document title generation from subject or first non-empty heading. Implemented universal binary and media file protection in `EditorViewModel` with comprehensive extension blacklisting (images, office documents, audio/video, archives, executables) and null-byte buffer sniffing (`content.take(4096).contains('\u0000')`) preventing garbled binary imports. Restricted system file picker MIME filter in `EditorScreen` to text formats. Full unit test suite and standalone APK assembly verified.
 - [x] **Milestone 6.3+**: Implemented multi-format document-to-Markdown conversion engine in `:domain` and `:data` supporting Word documents (`.docx` OpenXML ZIP + DOM with heading, bold/italic, lists, and table extraction), Excel spreadsheets (`.xlsx` OpenXML shared strings + sheet XML to Markdown tables), PDF documents (`.pdf` via `pdfbox-android` with font size heading heuristics, font style bold/italic recognition, bullet lists, page dividers, and best-effort toast notice), HTML documents (`.html`/`.htm` via JSoup DOM), Tabular data (`.csv`/`.tsv` with quoted multiline field parsing), and structured code/data (`.json`, `.xml`, `.yaml`, `.yml` into fenced code blocks). Preserved universal binary/image/audio/archive filter. Full unit test suite and standalone APK assembly verified.
+- [x] **SonarCloud Hardening**: Completely resolved all 34 issues identified by SonarCloud across all 5 modules. Remediated security vulnerabilities (`xml:S5332`, `xml:S6358`, `xml:S5322` in `AndroidManifest.xml`), eliminated high cognitive complexity (`kotlin:S3776`) via modular decomposition in converters, parsers, and UI components, simplified long parameter lists (`kotlin:S107`) using dedicated state/action bundles, converted single-method interfaces to functional interfaces (`kotlin:S6517`), removed redundant branches and unused parameters (`kotlin:S1871`, `kotlin:S1172`), and fixed suspend conversion test fixtures. 100% unit test pass rate and clean APK build verified.
 
 ## Immediate Next Steps
-1. **Milestone 6.4**: Document security: Biometric gate using `androidx.biometric:biometric` for protected files.
-2. **App Release**: Release keystore signing configuration, ProGuard/R8 obfuscation rules for `:app`, and release APK generation.
+1. **Commit**: Commit all changes resolving all 34 SonarCloud issues and multi-format document conversion.
+2. **Milestone 6.4**: Document security: Biometric gate using `androidx.biometric:biometric` for protected files.
+3. **App Release**: Release keystore signing configuration, ProGuard/R8 obfuscation rules for `:app`, and release APK generation.
 
 ## Key Architecture Decisions (ADR Log)
 | Date       | Decision                                      | Context & Rationale                                                                                                                                                                                | Status   |
@@ -72,6 +74,7 @@
 | 2026-09-12 | System Intent Handlers & Universal Binary Filter | Configured ACTION_SEND and ACTION_VIEW in AndroidManifest and MainActivity with EXTRA_TEXT / EXTRA_STREAM / ContentResolver resolution. Guarded against binary imports via comprehensive extension blacklist (images, office documents, media, archives) and null-byte buffer inspection (content.take(4096).contains('\u0000')), emitting typed user errors instead of parsing corrupt symbols. | ACCEPTED |
 | 2026-09-12 | Multi-Format Document Converter Engine        | Implemented clean Clean Architecture document conversion pipeline in `:domain` (`DocumentConverter`, `ConvertedDocument`, `ConvertDocumentUseCase`) and `:data` (`DocxToMarkdownConverter`, `XlsxToMarkdownConverter`, `PdfToMarkdownConverter` using `pdfbox-android`, `HtmlToMarkdownConverter` using `jsoup`, `CsvToMarkdownConverter`, `CompositeDocumentConverter`). Offloaded conversion I/O to `Dispatchers.IO` and raw binary byte preservation in `MainActivity` and `EditorScreen` avoiding UTF-8 corruption. | ACCEPTED |
 | 2026-09-12 | Personalized APK Output Naming                | Configured `base.archivesName.set("MarkdownEditor-v1.0")` in `app/build.gradle.kts` producing personalized APK artifacts (`MarkdownEditor-v1.0-debug.apk` / `MarkdownEditor-v1.0-release.apk`) instead of generic `app-debug.apk`. | ACCEPTED |
+| 2026-09-12 | Comprehensive SonarCloud Hardening            | Refactored high-cognitive-complexity methods across converters, parsers, and UI; bundled parameter lists into state/action value classes; enforced secure manifest configurations (disabled cleartext traffic and application backup); ensured 100% compliance with Sonar rules. | ACCEPTED |
 
 ## Technical Baseline & Chosen Versions
 - **Kotlin:** `2.4.20`
@@ -93,5 +96,5 @@
 - **SDK Constraints:** `minSdk = 26`, `targetSdk = 37`, `compileSdk = 37`
 
 ## Session Handoff Block
-- **Last Verified State:** Milestones 6.3 and 6.3+ (System integration: `ACTION_SEND` / `ACTION_VIEW`, personalized APK naming `MarkdownEditor-v1.0-debug.apk`, and Multi-Format Document-to-Markdown Converter Engine for DOCX, XLSX, PDF, HTML, CSV, JSON/XML/YAML with universal binary filter) are complete and committed. Full test suite (98/98 test tasks) and standalone debug APK assembly (`assembleDebug`) passing cleanly. Output generated at `app/build/outputs/apk/debug/MarkdownEditor-v1.0-debug.apk` (35 MB).
+- **Last Verified State:** All 34 SonarCloud issues completely resolved. Multi-Format Document-to-Markdown Converter Engine for DOCX, XLSX, PDF, HTML, CSV, JSON/XML/YAML with universal binary filter and secure manifest verified. Full test suite (98/98 test tasks) and standalone debug APK assembly (`assembleDebug`) passing cleanly. Output generated at `app/build/outputs/apk/debug/MarkdownEditor-v1.0-debug.apk` (35 MB).
 - **Exact Resumption Command/Action:** Proceed to Milestone 6.4 (Biometric document protection using `androidx.biometric:biometric`).

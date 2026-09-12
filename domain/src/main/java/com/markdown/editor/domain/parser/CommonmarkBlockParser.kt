@@ -62,25 +62,8 @@ class CommonmarkBlockParser : MarkdownBlockParser {
         var currentNode: Node? = documentNode.firstChild
         while (currentNode != null) {
             when (currentNode) {
-                is BulletList -> {
-                    var itemNode: Node? = currentNode.firstChild
-                    while (itemNode != null) {
-                        if (itemNode is ListItem) {
-                            blocks.add(createBlockFromNode(itemNode, rawMarkdown, BlockType.ListItem(ordered = false)))
-                        }
-                        itemNode = itemNode.next
-                    }
-                }
-                is OrderedList -> {
-                    var itemNode: Node? = currentNode.firstChild
-                    var index = currentNode.startNumber
-                    while (itemNode != null) {
-                        if (itemNode is ListItem) {
-                            blocks.add(createBlockFromNode(itemNode, rawMarkdown, BlockType.ListItem(ordered = true, index = index++)))
-                        }
-                        itemNode = itemNode.next
-                    }
-                }
+                is BulletList -> processBulletList(currentNode, rawMarkdown, blocks)
+                is OrderedList -> processOrderedList(currentNode, rawMarkdown, blocks)
                 else -> {
                     val blockType = determineBlockType(currentNode)
                     blocks.add(createBlockFromNode(currentNode, rawMarkdown, blockType))
@@ -98,6 +81,27 @@ class CommonmarkBlockParser : MarkdownBlockParser {
                 blocks
             }
         )
+    }
+
+    private fun processBulletList(list: BulletList, rawMarkdown: String, blocks: MutableList<MarkdownBlock>) {
+        var itemNode: Node? = list.firstChild
+        while (itemNode != null) {
+            if (itemNode is ListItem) {
+                blocks.add(createBlockFromNode(itemNode, rawMarkdown, BlockType.ListItem(ordered = false)))
+            }
+            itemNode = itemNode.next
+        }
+    }
+
+    private fun processOrderedList(list: OrderedList, rawMarkdown: String, blocks: MutableList<MarkdownBlock>) {
+        var itemNode: Node? = list.firstChild
+        var index = list.startNumber
+        while (itemNode != null) {
+            if (itemNode is ListItem) {
+                blocks.add(createBlockFromNode(itemNode, rawMarkdown, BlockType.ListItem(ordered = true, index = index++)))
+            }
+            itemNode = itemNode.next
+        }
     }
 
     override fun parseBlock(rawBlockContent: String, existingId: BlockId): MarkdownBlock {
@@ -196,22 +200,14 @@ class CommonmarkBlockParser : MarkdownBlockParser {
         val raw = extractRawContent(node, fullMarkdown)
 
         return when (node) {
-            is FencedCodeBlock -> {
+            is FencedCodeBlock, is IndentedCodeBlock -> {
+                val literal = if (node is FencedCodeBlock) node.literal else (node as IndentedCodeBlock).literal
                 MarkdownBlock(
                     id = blockId,
                     rawContent = raw,
                     type = blockType,
                     inlines = emptyList(),
-                    plainText = node.literal?.trimEnd('\r', '\n') ?: ""
-                )
-            }
-            is IndentedCodeBlock -> {
-                MarkdownBlock(
-                    id = blockId,
-                    rawContent = raw,
-                    type = blockType,
-                    inlines = emptyList(),
-                    plainText = node.literal?.trimEnd('\r', '\n') ?: ""
+                    plainText = literal?.trimEnd('\r', '\n') ?: ""
                 )
             }
             is ThematicBreak -> {

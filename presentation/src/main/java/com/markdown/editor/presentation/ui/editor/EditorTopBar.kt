@@ -85,56 +85,13 @@ fun EditorTopBar(
             }
         },
         title = {
-            val scrollState = rememberScrollState()
-            var titleValue by remember(state.documentId) {
-                mutableStateOf(TextFieldValue(state.title, TextRange(state.title.length)))
-            }
-
-            // Sync with external state changes (e.g. document loaded or updated externally)
-            LaunchedEffect(state.title) {
-                if (state.title != titleValue.text) {
-                    titleValue = titleValue.copy(text = state.title)
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(scrollState),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                BasicTextField(
-                    value = titleValue,
-                    onValueChange = { newValue ->
-                        titleValue = newValue
-                        if (newValue.text != state.title) {
-                            onIntent(EditorIntent.ChangeTitle(newValue.text))
-                        }
-                    },
-                    textStyle = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    ),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    singleLine = true,
-                    modifier = Modifier.wrapContentWidth(),
-                    decorationBox = { innerTextField ->
-                        if (titleValue.text.isEmpty()) {
-                            Text(
-                                text = "Document Title",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                )
-                            )
-                        }
-                        innerTextField()
-                    }
-                )
-            }
+            EditorTitleField(
+                title = state.title,
+                documentId = state.documentId,
+                onTitleChange = { onIntent(EditorIntent.ChangeTitle(it)) }
+            )
         },
         actions = {
-            // Find / Replace
             IconButton(onClick = { onIntent(EditorIntent.ToggleFindReplace()) }) {
                 Icon(
                     imageVector = Icons.Default.Search,
@@ -143,72 +100,15 @@ fun EditorTopBar(
                 )
             }
 
-            // View Mode switcher (always visible for quick access)
-            IconButton(onClick = { onIntent(EditorIntent.TogglePreview) }) {
-                val (icon, desc) = when (state.viewMode) {
-                    EditorViewMode.EDITOR_ONLY -> Icons.Default.Edit to "Mode: Editor (Tap to switch)"
-                    EditorViewMode.SPLIT_VIEW -> Icons.Default.VerticalSplit to "Mode: Split View (Tap to switch)"
-                    EditorViewMode.PREVIEW_ONLY -> Icons.Default.Visibility to "Mode: Preview (Tap to switch)"
-                }
-                Icon(
-                    imageVector = icon,
-                    contentDescription = desc,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
+            EditorModeSwitcher(
+                viewMode = state.viewMode,
+                onToggleMode = { onIntent(EditorIntent.TogglePreview) }
+            )
 
-            // Actions displayed inline ONLY on wider screens (>= 600dp)
             if (!isCompact) {
-                IconButton(onClick = { onIntent(EditorIntent.ToggleTableOfContents()) }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Toc,
-                        contentDescription = "Table of Contents",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                IconButton(
-                    onClick = { onIntent(EditorIntent.Undo) },
-                    enabled = state.canUndo
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Undo,
-                        contentDescription = "Undo",
-                        tint = if (state.canUndo) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                    )
-                }
-
-                IconButton(
-                    onClick = { onIntent(EditorIntent.Redo) },
-                    enabled = state.canRedo
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Redo,
-                        contentDescription = "Redo",
-                        tint = if (state.canRedo) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                    )
-                }
-
-                if (state.isSaving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                } else {
-                    IconButton(onClick = { onIntent(EditorIntent.SaveExplicitly) }) {
-                        Icon(
-                            imageVector = Icons.Default.Save,
-                            contentDescription = "Save document",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
+                EditorDesktopActions(state = state, onIntent = onIntent)
             }
 
-            // Overflow Menu
             Box {
                 IconButton(onClick = { showMenu = true }) {
                     Icon(
@@ -218,130 +118,311 @@ fun EditorTopBar(
                     )
                 }
 
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
-                ) {
-                    // In compact mode, show Undo, Redo, ToC, and Save in dropdown
-                    if (isCompact) {
-                        DropdownMenuItem(
-                            text = { Text("Undo") },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Undo, null) },
-                            enabled = state.canUndo,
-                            onClick = {
-                                showMenu = false
-                                onIntent(EditorIntent.Undo)
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("Redo") },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Redo, null) },
-                            enabled = state.canRedo,
-                            onClick = {
-                                showMenu = false
-                                onIntent(EditorIntent.Redo)
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("Table of Contents") },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Toc, null) },
-                            onClick = {
-                                showMenu = false
-                                onIntent(EditorIntent.ToggleTableOfContents())
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text(if (state.isSaving) "Saving..." else "Save Document") },
-                            leadingIcon = { Icon(Icons.Default.Save, null) },
-                            enabled = !state.isSaving,
-                            onClick = {
-                                showMenu = false
-                                onIntent(EditorIntent.SaveExplicitly)
-                            }
-                        )
-
-                        HorizontalDivider()
-                    }
-
-                    // Export section
-                    DropdownMenuItem(
-                        text = { Text("Print / Export PDF") },
-                        leadingIcon = { Icon(Icons.Default.Print, null) },
-                        onClick = {
-                            showMenu = false
-                            onIntent(EditorIntent.ExportDocument(ExportFormat.PDF))
-                        }
-                    )
-
-                    DropdownMenuItem(
-                        text = { Text("Export as HTML") },
-                        leadingIcon = { Icon(Icons.Default.Code, null) },
-                        onClick = {
-                            showMenu = false
-                            onIntent(EditorIntent.ExportDocument(ExportFormat.HTML))
-                        }
-                    )
-
-                    DropdownMenuItem(
-                        text = { Text("Share Markdown") },
-                        leadingIcon = { Icon(Icons.Default.Share, null) },
-                        onClick = {
-                            showMenu = false
-                            onIntent(EditorIntent.ExportDocument(ExportFormat.MARKDOWN))
-                        }
-                    )
-
-                    HorizontalDivider()
-
-                    // Theme section
-                    DropdownMenuItem(
-                        text = { Text("Theme: System") },
-                        leadingIcon = { Icon(Icons.Default.Palette, null) },
-                        trailingIcon = if (state.appTheme == AppTheme.SYSTEM) { { Icon(Icons.Default.Check, null) } } else null,
-                        onClick = {
-                            showMenu = false
-                            onIntent(EditorIntent.SetTheme(AppTheme.SYSTEM))
-                        }
-                    )
-
-                    DropdownMenuItem(
-                        text = { Text("Theme: Light") },
-                        leadingIcon = { Icon(Icons.Default.LightMode, null) },
-                        trailingIcon = if (state.appTheme == AppTheme.LIGHT) { { Icon(Icons.Default.Check, null) } } else null,
-                        onClick = {
-                            showMenu = false
-                            onIntent(EditorIntent.SetTheme(AppTheme.LIGHT))
-                        }
-                    )
-
-                    DropdownMenuItem(
-                        text = { Text("Theme: Dark") },
-                        leadingIcon = { Icon(Icons.Default.DarkMode, null) },
-                        trailingIcon = if (state.appTheme == AppTheme.DARK) { { Icon(Icons.Default.Check, null) } } else null,
-                        onClick = {
-                            showMenu = false
-                            onIntent(EditorIntent.SetTheme(AppTheme.DARK))
-                        }
-                    )
-
-                    DropdownMenuItem(
-                        text = { Text("Theme: AMOLED Black") },
-                        leadingIcon = { Icon(Icons.Default.Nightlife, null) },
-                        trailingIcon = if (state.appTheme == AppTheme.AMOLED) { { Icon(Icons.Default.Check, null) } } else null,
-                        onClick = {
-                            showMenu = false
-                            onIntent(EditorIntent.SetTheme(AppTheme.AMOLED))
-                        }
-                    )
-                }
+                EditorOverflowMenu(
+                    showMenu = showMenu,
+                    onDismiss = { showMenu = false },
+                    isCompact = isCompact,
+                    state = state,
+                    onIntent = onIntent
+                )
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         modifier = modifier
+    )
+}
+
+@Composable
+private fun EditorTitleField(
+    title: String,
+    documentId: String,
+    onTitleChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scrollState = rememberScrollState()
+    var titleValue by remember(documentId) {
+        mutableStateOf(TextFieldValue(title, TextRange(title.length)))
+    }
+
+    LaunchedEffect(title) {
+        if (title != titleValue.text) {
+            titleValue = titleValue.copy(text = title)
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(scrollState),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        BasicTextField(
+            value = titleValue,
+            onValueChange = { newValue ->
+                titleValue = newValue
+                if (newValue.text != title) {
+                    onTitleChange(newValue.text)
+                }
+            },
+            textStyle = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            singleLine = true,
+            modifier = Modifier.wrapContentWidth(),
+            decorationBox = { innerTextField ->
+                if (titleValue.text.isEmpty()) {
+                    Text(
+                        text = "Document Title",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+                innerTextField()
+            }
+        )
+    }
+}
+
+@Composable
+private fun EditorModeSwitcher(
+    viewMode: EditorViewMode,
+    onToggleMode: () -> Unit
+) {
+    IconButton(onClick = onToggleMode) {
+        val (icon, desc) = when (viewMode) {
+            EditorViewMode.EDITOR_ONLY -> Icons.Default.Edit to "Mode: Editor (Tap to switch)"
+            EditorViewMode.SPLIT_VIEW -> Icons.Default.VerticalSplit to "Mode: Split View (Tap to switch)"
+            EditorViewMode.PREVIEW_ONLY -> Icons.Default.Visibility to "Mode: Preview (Tap to switch)"
+        }
+        Icon(
+            imageVector = icon,
+            contentDescription = desc,
+            tint = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+private fun EditorDesktopActions(
+    state: EditorUiState,
+    onIntent: (EditorIntent) -> Unit
+) {
+    IconButton(onClick = { onIntent(EditorIntent.ToggleTableOfContents()) }) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.Toc,
+            contentDescription = "Table of Contents",
+            tint = MaterialTheme.colorScheme.onSurface
+        )
+    }
+
+    IconButton(
+        onClick = { onIntent(EditorIntent.Undo) },
+        enabled = state.canUndo
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.Undo,
+            contentDescription = "Undo",
+            tint = if (state.canUndo) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        )
+    }
+
+    IconButton(
+        onClick = { onIntent(EditorIntent.Redo) },
+        enabled = state.canRedo
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.Redo,
+            contentDescription = "Redo",
+            tint = if (state.canRedo) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        )
+    }
+
+    if (state.isSaving) {
+        CircularProgressIndicator(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .size(20.dp),
+            strokeWidth = 2.dp,
+            color = MaterialTheme.colorScheme.primary
+        )
+    } else {
+        IconButton(onClick = { onIntent(EditorIntent.SaveExplicitly) }) {
+            Icon(
+                imageVector = Icons.Default.Save,
+                contentDescription = "Save document",
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun EditorOverflowMenu(
+    showMenu: Boolean,
+    onDismiss: () -> Unit,
+    isCompact: Boolean,
+    state: EditorUiState,
+    onIntent: (EditorIntent) -> Unit
+) {
+    DropdownMenu(
+        expanded = showMenu,
+        onDismissRequest = onDismiss
+    ) {
+        if (isCompact) {
+            CompactActionMenuItems(state = state, onIntent = onIntent, onDismiss = onDismiss)
+            HorizontalDivider()
+        }
+
+        ExportActionMenuItems(onIntent = onIntent, onDismiss = onDismiss)
+        HorizontalDivider()
+
+        ThemeActionMenuItems(currentTheme = state.appTheme, onIntent = onIntent, onDismiss = onDismiss)
+    }
+}
+
+@Composable
+private fun CompactActionMenuItems(
+    state: EditorUiState,
+    onIntent: (EditorIntent) -> Unit,
+    onDismiss: () -> Unit
+) {
+    DropdownMenuItem(
+        text = { Text("Undo") },
+        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Undo, null) },
+        enabled = state.canUndo,
+        onClick = {
+            onDismiss()
+            onIntent(EditorIntent.Undo)
+        }
+    )
+
+    DropdownMenuItem(
+        text = { Text("Redo") },
+        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Redo, null) },
+        enabled = state.canRedo,
+        onClick = {
+            onDismiss()
+            onIntent(EditorIntent.Redo)
+        }
+    )
+
+    DropdownMenuItem(
+        text = { Text("Table of Contents") },
+        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Toc, null) },
+        onClick = {
+            onDismiss()
+            onIntent(EditorIntent.ToggleTableOfContents())
+        }
+    )
+
+    DropdownMenuItem(
+        text = { Text(if (state.isSaving) "Saving..." else "Save Document") },
+        leadingIcon = { Icon(Icons.Default.Save, null) },
+        enabled = !state.isSaving,
+        onClick = {
+            onDismiss()
+            onIntent(EditorIntent.SaveExplicitly)
+        }
+    )
+}
+
+@Composable
+private fun ExportActionMenuItems(
+    onIntent: (EditorIntent) -> Unit,
+    onDismiss: () -> Unit
+) {
+    DropdownMenuItem(
+        text = { Text("Print / Export PDF") },
+        leadingIcon = { Icon(Icons.Default.Print, null) },
+        onClick = {
+            onDismiss()
+            onIntent(EditorIntent.ExportDocument(ExportFormat.PDF))
+        }
+    )
+
+    DropdownMenuItem(
+        text = { Text("Export as HTML") },
+        leadingIcon = { Icon(Icons.Default.Code, null) },
+        onClick = {
+            onDismiss()
+            onIntent(EditorIntent.ExportDocument(ExportFormat.HTML))
+        }
+    )
+
+    DropdownMenuItem(
+        text = { Text("Share Markdown") },
+        leadingIcon = { Icon(Icons.Default.Share, null) },
+        onClick = {
+            onDismiss()
+            onIntent(EditorIntent.ExportDocument(ExportFormat.MARKDOWN))
+        }
+    )
+}
+
+@Composable
+private fun ThemeActionMenuItems(
+    currentTheme: AppTheme,
+    onIntent: (EditorIntent) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ThemeMenuItem(
+        title = "Theme: System",
+        icon = Icons.Default.Palette,
+        isSelected = currentTheme == AppTheme.SYSTEM,
+        onClick = {
+            onDismiss()
+            onIntent(EditorIntent.SetTheme(AppTheme.SYSTEM))
+        }
+    )
+
+    ThemeMenuItem(
+        title = "Theme: Light",
+        icon = Icons.Default.LightMode,
+        isSelected = currentTheme == AppTheme.LIGHT,
+        onClick = {
+            onDismiss()
+            onIntent(EditorIntent.SetTheme(AppTheme.LIGHT))
+        }
+    )
+
+    ThemeMenuItem(
+        title = "Theme: Dark",
+        icon = Icons.Default.DarkMode,
+        isSelected = currentTheme == AppTheme.DARK,
+        onClick = {
+            onDismiss()
+            onIntent(EditorIntent.SetTheme(AppTheme.DARK))
+        }
+    )
+
+    ThemeMenuItem(
+        title = "Theme: AMOLED Black",
+        icon = Icons.Default.Nightlife,
+        isSelected = currentTheme == AppTheme.AMOLED,
+        onClick = {
+            onDismiss()
+            onIntent(EditorIntent.SetTheme(AppTheme.AMOLED))
+        }
+    )
+}
+
+@Composable
+private fun ThemeMenuItem(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    DropdownMenuItem(
+        text = { Text(title) },
+        leadingIcon = { Icon(icon, null) },
+        trailingIcon = if (isSelected) { { Icon(Icons.Default.Check, null) } } else null,
+        onClick = onClick
     )
 }

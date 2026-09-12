@@ -1,5 +1,6 @@
 package com.markdown.editor.data.converter
 
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -9,7 +10,7 @@ class HtmlToMarkdownConverterTest {
     private val converter = HtmlToMarkdownConverter()
 
     @Test
-    fun `convert translates HTML tags into Markdown elements`() {
+    fun `convert translates HTML tags into Markdown elements`() = runTest {
         val html = """
             <!DOCTYPE html>
             <html>

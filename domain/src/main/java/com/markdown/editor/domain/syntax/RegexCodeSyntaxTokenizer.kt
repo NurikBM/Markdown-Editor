@@ -18,32 +18,40 @@ class RegexCodeSyntaxTokenizer : CodeSyntaxTokenizer {
         val tokens = mutableListOf<SyntaxToken>()
 
         for (rule in rules) {
-            val matches = rule.regex.findAll(code)
-            for (match in matches) {
-                val start = match.range.first
-                val end = match.range.last + 1
-
-                if (start in 0 until code.length && end <= code.length && start < end) {
-                    var isAvailable = true
-                    for (i in start until end) {
-                        if (occupied[i]) {
-                            isAvailable = false
-                            break
-                        }
-                    }
-
-                    if (isAvailable) {
-                        for (i in start until end) {
-                            occupied[i] = true
-                        }
-                        tokens.add(SyntaxToken(type = rule.tokenType, start = start, end = end))
-                    }
-                }
-            }
+            applyRule(rule, code, occupied, tokens)
         }
 
         tokens.sortBy { it.start }
         return tokens
+    }
+
+    private fun isRangeAvailable(occupied: BooleanArray, start: Int, end: Int): Boolean {
+        for (i in start until end) {
+            if (occupied[i]) return false
+        }
+        return true
+    }
+
+    private fun markOccupied(occupied: BooleanArray, start: Int, end: Int) {
+        for (i in start until end) {
+            occupied[i] = true
+        }
+    }
+
+    private fun applyRule(
+        rule: SyntaxRule,
+        code: String,
+        occupied: BooleanArray,
+        tokens: MutableList<SyntaxToken>
+    ) {
+        for (match in rule.regex.findAll(code)) {
+            val start = match.range.first
+            val end = match.range.last + 1
+            if (start in 0 until code.length && end <= code.length && start < end && isRangeAvailable(occupied, start, end)) {
+                markOccupied(occupied, start, end)
+                tokens.add(SyntaxToken(type = rule.tokenType, start = start, end = end))
+            }
+        }
     }
 
     private fun getRulesForLanguage(language: String): List<SyntaxRule> {

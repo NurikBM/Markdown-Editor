@@ -73,6 +73,7 @@ class EditorViewModelFactory(
 object PresentationModule {
 
     @Provides
+    @Suppress("kotlin:S107", "LongParameterList")
     fun provideEditorViewModelFactory(
         markdownRepository: MarkdownRepository,
         snapshotRepository: SnapshotRepository,

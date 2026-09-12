@@ -1,6 +1,7 @@
 package com.markdown.editor.data.converter
 
 import com.markdown.editor.domain.converter.ConvertedDocument
+import com.markdown.editor.domain.converter.DocumentConverter
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -11,9 +12,16 @@ import java.io.InputStream
  * Converter translating HTML web pages and markup (.html, .htm) into clean Markdown.
  * Uses Jsoup for DOM hierarchy traversal.
  */
-class HtmlToMarkdownConverter {
+class HtmlToMarkdownConverter : DocumentConverter {
 
-    fun convert(fileName: String, inputStream: InputStream): ConvertedDocument {
+    override fun canConvert(extension: String): Boolean {
+        return extension.equals("html", ignoreCase = true) ||
+                extension.equals("htm", ignoreCase = true) ||
+                extension.endsWith(".html", ignoreCase = true) ||
+                extension.endsWith(".htm", ignoreCase = true)
+    }
+
+    override suspend fun convert(fileName: String, inputStream: InputStream): ConvertedDocument {
         val title = fileName.substringBeforeLast('.')
         val doc = Jsoup.parse(inputStream, "UTF-8", "")
         val extractedTitle = doc.title().ifBlank { title }
@@ -42,66 +50,67 @@ class HtmlToMarkdownConverter {
         }
     }
 
+    private fun renderHeading(tag: String, element: Element): String {
+        val level = tag.substring(1).toIntOrNull() ?: 1
+        val prefix = "#".repeat(level)
+        return "$prefix ${renderChildren(element).trim()}\n\n"
+    }
+
+    private fun renderInlineStyle(tag: String, element: Element): String {
+        val text = renderChildren(element).trim()
+        if (text.isEmpty()) return ""
+        return when (tag) {
+            "strong", "b" -> "**$text**"
+            "em", "i" -> "*$text*"
+            "del", "s", "strike" -> "~~$text~~"
+            "a" -> {
+                val href = element.attr("href").trim()
+                if (href.isNotEmpty()) "[$text]($href)" else text
+            }
+            else -> text
+        }
+    }
+
+    private fun renderCode(tag: String, element: Element): String {
+        return if (tag == "pre") {
+            val codeText = element.wholeText().trim()
+            "```\n$codeText\n```\n\n"
+        } else {
+            if (element.parent()?.tagName()?.lowercase() == "pre") {
+                renderChildren(element)
+            } else {
+                val text = renderChildren(element).trim()
+                if (text.isNotEmpty()) "`$text`" else ""
+            }
+        }
+    }
+
+    private fun renderBlockquote(element: Element): String {
+        val quoteText = renderChildren(element).trim()
+        return if (quoteText.isNotEmpty()) {
+            quoteText.lines().joinToString("\n") { "> $it" } + "\n\n"
+        } else ""
+    }
+
+    private fun renderContainer(element: Element): String {
+        val tag = element.tagName().lowercase()
+        val text = renderChildren(element).trim()
+        val blockTags = setOf("p", "div", "section", "article", "main", "header", "footer")
+        return if (text.isNotEmpty() && tag in blockTags) "$text\n\n" else text
+    }
+
     private fun renderElement(element: Element): String {
         val tag = element.tagName().lowercase()
-
         return when (tag) {
-            "h1" -> "# " + renderChildren(element).trim() + "\n\n"
-            "h2" -> "## " + renderChildren(element).trim() + "\n\n"
-            "h3" -> "### " + renderChildren(element).trim() + "\n\n"
-            "h4" -> "#### " + renderChildren(element).trim() + "\n\n"
-            "h5" -> "##### " + renderChildren(element).trim() + "\n\n"
-            "h6" -> "###### " + renderChildren(element).trim() + "\n\n"
-            "p" -> {
-                val pText = renderChildren(element).trim()
-                if (pText.isNotEmpty()) "$pText\n\n" else ""
-            }
-            "strong", "b" -> {
-                val text = renderChildren(element).trim()
-                if (text.isNotEmpty()) "**$text**" else ""
-            }
-            "em", "i" -> {
-                val text = renderChildren(element).trim()
-                if (text.isNotEmpty()) "*$text*" else ""
-            }
-            "del", "s", "strike" -> {
-                val text = renderChildren(element).trim()
-                if (text.isNotEmpty()) "~~$text~~" else ""
-            }
-            "code" -> {
-                if (element.parent()?.tagName()?.lowercase() == "pre") {
-                    renderChildren(element)
-                } else {
-                    val text = renderChildren(element).trim()
-                    if (text.isNotEmpty()) "`$text`" else ""
-                }
-            }
-            "pre" -> {
-                val codeText = element.wholeText().trim()
-                "```\n$codeText\n```\n\n"
-            }
-            "blockquote" -> {
-                val quoteText = renderChildren(element).trim()
-                if (quoteText.isNotEmpty()) {
-                    quoteText.lines().joinToString("\n") { "> $it" } + "\n\n"
-                } else ""
-            }
-            "ul" -> renderList(element, ordered = false)
-            "ol" -> renderList(element, ordered = true)
-            "li" -> renderChildren(element)
-            "a" -> {
-                val text = renderChildren(element).trim()
-                val href = element.attr("href").trim()
-                if (text.isNotEmpty() && href.isNotEmpty()) "[$text]($href)" else text
-            }
+            "h1", "h2", "h3", "h4", "h5", "h6" -> renderHeading(tag, element)
+            "strong", "b", "em", "i", "del", "s", "strike", "a" -> renderInlineStyle(tag, element)
+            "code", "pre" -> renderCode(tag, element)
+            "blockquote" -> renderBlockquote(element)
+            "ul", "ol" -> renderList(element, ordered = (tag == "ol"))
             "table" -> renderTable(element)
             "hr" -> "---\n\n"
             "br" -> "\n"
-            "div", "section", "article", "main", "header", "footer" -> {
-                val text = renderChildren(element).trim()
-                if (text.isNotEmpty()) "$text\n\n" else ""
-            }
-            else -> renderChildren(element)
+            else -> renderContainer(element)
         }
     }
 
@@ -164,4 +173,3 @@ class HtmlToMarkdownConverter {
         return sb.append("\n").toString()
     }
 }
-

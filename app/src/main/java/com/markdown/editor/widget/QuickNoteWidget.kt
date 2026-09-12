@@ -46,7 +46,7 @@ class QuickNoteWidget : GlanceAppWidget() {
 
     @EntryPoint
     @InstallIn(SingletonComponent::class)
-    interface WidgetEntryPoint {
+    fun interface WidgetEntryPoint {
         fun markdownRepository(): com.markdown.editor.domain.repository.MarkdownRepository
     }
 
