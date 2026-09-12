@@ -91,5 +91,12 @@ object DomainModule {
     @Singleton
     fun provideApplyFormattingUseCase(): com.markdown.editor.domain.usecase.ApplyFormattingUseCase =
         com.markdown.editor.domain.usecase.ApplyFormattingUseCase()
+
+    @Provides
+    @Singleton
+    fun provideConvertDocumentUseCase(
+        documentConverter: com.markdown.editor.domain.converter.DocumentConverter
+    ): com.markdown.editor.domain.usecase.ConvertDocumentUseCase =
+        com.markdown.editor.domain.usecase.ConvertDocumentUseCase(documentConverter)
 }
 

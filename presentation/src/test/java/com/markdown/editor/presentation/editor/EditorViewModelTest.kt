@@ -736,14 +736,110 @@ class EditorViewModelTest {
     }
 
     @Test
-    fun `openExternalDocument rejects binary formats and emits ShowError`() = runTest(testDispatcher) {
+    fun `openExternalDocument rejects legacy office formats and emits ShowError`() = runTest(testDispatcher) {
         viewModel.uiEffect.test {
-            viewModel.processIntent(EditorIntent.OpenExternalDocument(fileName = "Report.pdf", content = "%PDF-1.7..."))
+            viewModel.processIntent(EditorIntent.OpenExternalDocument(fileName = "Report.doc", content = "binary..."))
             advanceUntilIdle()
 
             val effect = awaitItem()
             assertTrue(effect is EditorEffect.ShowError)
-            assertTrue((effect as EditorEffect.ShowError).message.contains("binary files"))
+            assertTrue((effect as EditorEffect.ShowError).message.contains("Legacy office formats"))
+        }
+    }
+
+    @Test
+    fun `openExternalDocument with convertDocumentUseCase converts docx and loads markdown`() = runTest(testDispatcher) {
+        val mockConverter = mockk<com.markdown.editor.domain.converter.DocumentConverter>()
+        coEvery { mockConverter.canConvert("docx") } returns true
+        coEvery { mockConverter.convert("Report.docx", any()) } returns com.markdown.editor.domain.converter.ConvertedDocument(
+            title = "Report",
+            markdownContent = "# Converted Report\n\nSome body text."
+        )
+        val convertUseCase = com.markdown.editor.domain.usecase.ConvertDocumentUseCase(mockConverter)
+
+        val vm = EditorViewModel(
+            markdownRepository = markdownRepository,
+            snapshotRepository = snapshotRepository,
+            splitBlockUseCase = splitBlockUseCase,
+            mergeBlockUseCase = mergeBlockUseCase,
+            undoBlockUseCase = undoBlockUseCase,
+            redoBlockUseCase = redoBlockUseCase,
+            diffCalculator = diffCalculator,
+            parser = parser,
+            dispatcherProvider = dispatcherProvider,
+            exportHtmlUseCase = exportHtmlUseCase,
+            convertDocumentUseCase = convertUseCase
+        )
+
+        vm.uiEffect.test {
+            vm.processIntent(EditorIntent.OpenExternalDocument(fileName = "Report.docx", rawBytes = byteArrayOf(1, 2, 3)))
+            advanceUntilIdle()
+
+            val effect = awaitItem()
+            assertTrue(effect is EditorEffect.ShowToast)
+            assertEquals("Opened Report.docx", (effect as EditorEffect.ShowToast).message)
+            assertEquals("Report", vm.uiState.value.title)
+            assertEquals(2, vm.uiState.value.blocks.size)
+        }
+    }
+
+    @Test
+    fun `openExternalDocument with best effort PDF emits warning toast`() = runTest(testDispatcher) {
+        val mockConverter = mockk<com.markdown.editor.domain.converter.DocumentConverter>()
+        coEvery { mockConverter.canConvert("pdf") } returns true
+        coEvery { mockConverter.convert("Paper.pdf", any()) } returns com.markdown.editor.domain.converter.ConvertedDocument(
+            title = "Paper",
+            markdownContent = "# Paper Title\n\nContent",
+            isBestEffort = true,
+            warningMessage = "PDF imported with best-effort layout. Please review headings, lists, and tables."
+        )
+        val convertUseCase = com.markdown.editor.domain.usecase.ConvertDocumentUseCase(mockConverter)
+
+        val vm = EditorViewModel(
+            markdownRepository = markdownRepository,
+            snapshotRepository = snapshotRepository,
+            splitBlockUseCase = splitBlockUseCase,
+            mergeBlockUseCase = mergeBlockUseCase,
+            undoBlockUseCase = undoBlockUseCase,
+            redoBlockUseCase = redoBlockUseCase,
+            diffCalculator = diffCalculator,
+            parser = parser,
+            dispatcherProvider = dispatcherProvider,
+            exportHtmlUseCase = exportHtmlUseCase,
+            convertDocumentUseCase = convertUseCase
+        )
+
+        vm.uiEffect.test {
+            vm.processIntent(EditorIntent.OpenExternalDocument(fileName = "Paper.pdf", rawBytes = byteArrayOf(37, 80, 68, 70)))
+            advanceUntilIdle()
+
+            val effect = awaitItem()
+            assertTrue(effect is EditorEffect.ShowToast)
+            assertTrue((effect as EditorEffect.ShowToast).message.contains("best-effort"))
+        }
+    }
+
+    @Test
+    fun `openExternalDocument rejects image formats and emits ShowError`() = runTest(testDispatcher) {
+        viewModel.uiEffect.test {
+            viewModel.processIntent(EditorIntent.OpenExternalDocument(fileName = "Screenshot.png", content = "PNG..."))
+            advanceUntilIdle()
+
+            val effect = awaitItem()
+            assertTrue(effect is EditorEffect.ShowError)
+            assertTrue((effect as EditorEffect.ShowError).message.contains("Images cannot be opened"))
+        }
+    }
+
+    @Test
+    fun `openExternalDocument rejects binary content containing null bytes`() = runTest(testDispatcher) {
+        viewModel.uiEffect.test {
+            viewModel.processIntent(EditorIntent.OpenExternalDocument(fileName = "mystery.md", content = "text\u0000binary"))
+            advanceUntilIdle()
+
+            val effect = awaitItem()
+            assertTrue(effect is EditorEffect.ShowError)
+            assertTrue((effect as EditorEffect.ShowError).message.contains("binary data"))
         }
     }
 }

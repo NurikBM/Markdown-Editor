@@ -8,6 +8,10 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+base {
+    archivesName.set("MarkdownEditor-v1.0")
+}
+
 extensions.configure<ApplicationExtension> {
     namespace = "com.markdown.editor"
     compileSdk = 37

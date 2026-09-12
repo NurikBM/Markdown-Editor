@@ -17,6 +17,7 @@ import com.markdown.editor.domain.parser.MarkdownBlockParser
 import com.markdown.editor.domain.repository.MarkdownRepository
 import com.markdown.editor.domain.repository.SnapshotRepository
 import com.markdown.editor.domain.usecase.ApplyFormattingUseCase
+import com.markdown.editor.domain.usecase.ConvertDocumentUseCase
 import com.markdown.editor.domain.usecase.ExportHtmlUseCase
 import com.markdown.editor.domain.usecase.FindInDocumentUseCase
 import com.markdown.editor.domain.usecase.GenerateTableOfContentsUseCase
@@ -52,7 +53,8 @@ class EditorViewModel(
     private val generateTableOfContentsUseCase: GenerateTableOfContentsUseCase = GenerateTableOfContentsUseCase(),
     private val findInDocumentUseCase: FindInDocumentUseCase = FindInDocumentUseCase(),
     private val replaceInDocumentUseCase: ReplaceInDocumentUseCase = ReplaceInDocumentUseCase(parser),
-    private val applyFormattingUseCase: ApplyFormattingUseCase = ApplyFormattingUseCase()
+    private val applyFormattingUseCase: ApplyFormattingUseCase = ApplyFormattingUseCase(),
+    private val convertDocumentUseCase: ConvertDocumentUseCase? = null
 ) : MviViewModel<EditorUiState, EditorIntent, EditorEffect>(EditorUiState()) {
 
     private val undoStack = ArrayDeque<DocumentSnapshot>()
@@ -89,7 +91,7 @@ class EditorViewModel(
             is EditorIntent.ToggleDrawer -> toggleDrawer(intent.open)
             is EditorIntent.CreateNewDocument -> createNewDocument()
             is EditorIntent.DeleteDocument -> deleteDocument(intent.documentId)
-            is EditorIntent.OpenExternalDocument -> openExternalDocument(intent.fileName, intent.content)
+            is EditorIntent.OpenExternalDocument -> openExternalDocument(intent.fileName, intent.content, intent.rawBytes)
             EditorIntent.FindNextMatch -> findNextMatch()
             EditorIntent.FindPreviousMatch -> findPreviousMatch()
             EditorIntent.ReplaceCurrentMatch -> replaceCurrentMatch()
@@ -861,26 +863,73 @@ class EditorViewModel(
         }
     }
 
-    private fun openExternalDocument(fileName: String, content: String) {
+    private fun openExternalDocument(fileName: String, content: String, rawBytes: ByteArray? = null) {
         val lowerName = fileName.lowercase()
-        if (lowerName.endsWith(".pdf") || lowerName.endsWith(".docx") || lowerName.endsWith(".doc")) {
-            sendEffect(EditorEffect.ShowError("PDF and Word documents are binary files. Please select .md or .txt files."))
-            return
+        val extension = lowerName.substringAfterLast('.', "")
+
+        val imageExtensions = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico", "heic")
+        val otherBinaryExtensions = setOf("zip", "rar", "7z", "tar", "gz", "mp3", "wav", "ogg", "m4a", "flac", "mp4", "mkv", "avi", "mov", "apk", "exe", "bin")
+
+        val isConvertible = convertDocumentUseCase?.canConvert(fileName) == true
+
+        when {
+            imageExtensions.contains(extension) -> {
+                sendEffect(EditorEffect.ShowError("Images cannot be opened as text. Please select a Markdown (.md) or document file."))
+                return
+            }
+            otherBinaryExtensions.contains(extension) -> {
+                sendEffect(EditorEffect.ShowError("Binary files cannot be opened as text. Please select a Markdown (.md) or document file."))
+                return
+            }
+            !isConvertible && extension in setOf("doc", "xls", "ppt") -> {
+                sendEffect(EditorEffect.ShowError("Legacy office formats (.${extension}) are not supported. Please use modern .docx or .xlsx files."))
+                return
+            }
+            !isConvertible && content.take(4096).contains('\u0000') -> {
+                sendEffect(EditorEffect.ShowError("This file contains binary data and cannot be opened as text."))
+                return
+            }
         }
+
         viewModelScope.launch {
             typingJob?.cancel()
             updateState { copy(isLoading = true) }
+
+            val inputStream = rawBytes?.inputStream() ?: content.byteInputStream(Charsets.UTF_8)
+            val effectiveContent: String
+            val effectiveTitle: String
+            var warningNotice: String? = null
+
+            if (isConvertible) {
+                try {
+                    val converted = withContext(dispatcherProvider.io) {
+                        convertDocumentUseCase(fileName, inputStream)
+                    }
+                    effectiveContent = converted.markdownContent
+                    effectiveTitle = converted.title
+                    if (converted.warningMessage != null) {
+                        warningNotice = converted.warningMessage
+                    }
+                } catch (e: Exception) {
+                    updateState { copy(isLoading = false) }
+                    sendEffect(EditorEffect.ShowError("Conversion failed: ${e.message ?: "Unsupported structure"}"))
+                    return@launch
+                }
+            } else {
+                effectiveContent = content
+                effectiveTitle = fileName.removeSuffix(".md").removeSuffix(".markdown").removeSuffix(".txt")
+            }
+
             val docId = "doc_${System.currentTimeMillis()}"
-            val title = fileName.removeSuffix(".md").removeSuffix(".markdown").removeSuffix(".txt")
             val parsedDoc = withContext(dispatcherProvider.diffAndParsing) {
-                parser.parseDocument(content, docId, title)
+                parser.parseDocument(effectiveContent, docId, effectiveTitle)
             }
             val cleanBlocks = if (parsedDoc.blocks.isEmpty()) {
                 listOf(MarkdownBlock(id = BlockId(UUID.randomUUID().toString()), rawContent = "", type = BlockType.Paragraph))
             } else {
                 parsedDoc.blocks
             }
-            val doc = MarkdownDocument(id = docId, title = title, blocks = cleanBlocks)
+            val doc = MarkdownDocument(id = docId, title = effectiveTitle, blocks = cleanBlocks)
             withContext(dispatcherProvider.io) {
                 markdownRepository.saveDocument(doc)
             }
@@ -904,7 +953,11 @@ class EditorViewModel(
                     selectionEnd = 0
                 )
             }
-            sendEffect(EditorEffect.ShowToast("Opened $fileName"))
+            if (warningNotice != null) {
+                sendEffect(EditorEffect.ShowToast(warningNotice))
+            } else {
+                sendEffect(EditorEffect.ShowToast("Opened $fileName"))
+            }
         }
     }
 }

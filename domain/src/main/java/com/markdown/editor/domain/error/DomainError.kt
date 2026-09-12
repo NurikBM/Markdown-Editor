@@ -30,6 +30,13 @@ sealed interface DomainError {
         data class PdfExportFailed(val message: String, val cause: Throwable? = null) : Export
         data class FileWriteFailed(val destinationPath: String, val message: String) : Export
     }
+
+    sealed interface Conversion : DomainError {
+        data class CorruptedFile(val fileName: String, val reason: String) : Conversion
+        data class UnsupportedFormat(val extension: String) : Conversion
+        data class PasswordProtected(val fileName: String) : Conversion
+        data class EmptyDocument(val fileName: String) : Conversion
+    }
 }
 
 class DomainException(val error: DomainError) : RuntimeException(error.toString())

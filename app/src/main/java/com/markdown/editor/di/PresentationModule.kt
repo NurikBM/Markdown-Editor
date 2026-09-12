@@ -39,7 +39,8 @@ class EditorViewModelFactory(
     private val generateTableOfContentsUseCase: GenerateTableOfContentsUseCase,
     private val findInDocumentUseCase: FindInDocumentUseCase,
     private val replaceInDocumentUseCase: ReplaceInDocumentUseCase,
-    private val applyFormattingUseCase: ApplyFormattingUseCase
+    private val applyFormattingUseCase: ApplyFormattingUseCase,
+    private val convertDocumentUseCase: com.markdown.editor.domain.usecase.ConvertDocumentUseCase
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -59,7 +60,8 @@ class EditorViewModelFactory(
                 generateTableOfContentsUseCase = generateTableOfContentsUseCase,
                 findInDocumentUseCase = findInDocumentUseCase,
                 replaceInDocumentUseCase = replaceInDocumentUseCase,
-                applyFormattingUseCase = applyFormattingUseCase
+                applyFormattingUseCase = applyFormattingUseCase,
+                convertDocumentUseCase = convertDocumentUseCase
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
@@ -85,7 +87,8 @@ object PresentationModule {
         generateTableOfContentsUseCase: GenerateTableOfContentsUseCase,
         findInDocumentUseCase: FindInDocumentUseCase,
         replaceInDocumentUseCase: ReplaceInDocumentUseCase,
-        applyFormattingUseCase: ApplyFormattingUseCase
+        applyFormattingUseCase: ApplyFormattingUseCase,
+        convertDocumentUseCase: com.markdown.editor.domain.usecase.ConvertDocumentUseCase
     ): EditorViewModelFactory = EditorViewModelFactory(
         markdownRepository = markdownRepository,
         snapshotRepository = snapshotRepository,
@@ -100,6 +103,7 @@ object PresentationModule {
         generateTableOfContentsUseCase = generateTableOfContentsUseCase,
         findInDocumentUseCase = findInDocumentUseCase,
         replaceInDocumentUseCase = replaceInDocumentUseCase,
-        applyFormattingUseCase = applyFormattingUseCase
+        applyFormattingUseCase = applyFormattingUseCase,
+        convertDocumentUseCase = convertDocumentUseCase
     )
 }

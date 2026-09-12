@@ -93,5 +93,12 @@ object DataModule {
         snapshotDao = snapshotDao,
         dispatcherProvider = dispatcherProvider
     )
+
+    @Provides
+    @Singleton
+    fun provideDocumentConverter(
+        @ApplicationContext context: Context
+    ): com.markdown.editor.domain.converter.DocumentConverter =
+        com.markdown.editor.data.converter.CompositeDocumentConverter(context)
 }
 

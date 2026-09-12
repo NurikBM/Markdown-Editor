@@ -2,8 +2,8 @@
 
 ## Active State
 - **Current Phase:** Phase 6 — Extended Product Polish
-- **Current Milestone:** Milestone 6.2 — Quick Note App Widget (Jetpack Glance), Document Manager Drawer & Adaptive Icon
-- **Active Subtask:** Commit 13 Execution & Milestone 6.3 Transition
+- **Current Milestone:** Milestone 6.3 & 6.3+ — System Integration, Universal Binary Filter & Multi-Format Document-to-Markdown Converter (DOCX, XLSX, PDF, HTML, CSV, JSON/XML/YAML)
+- **Active Subtask:** Verification Complete & Ready for User Review and Commit
 - **Status:** VERIFIED
 
 ## Completed Milestones
@@ -30,12 +30,13 @@
   3. Native text selection and copying in `MarkdownPreviewPane` via `SelectionContainer`.
   4. Real-time visual search match highlighting (`SearchHighlightVisualTransformation`) in Editor and Preview with active match accent and case-sensitive ("Aa") toggle.
   (Commit: `b1dffbf`).
-- [x] **Milestone 6.2**: Implemented Quick Note Home Screen App Widget (`androidx.glance:glance-appwidget:1.1.1`), Document Manager Navigation Drawer (`ModalNavigationDrawer`, `DocumentDrawerSheet`) with live Room document observation, switching, creation, deletion with confirmation dialog, and SAF document import (`ActivityResultContracts.OpenDocument`). Created pure Material 3 Adaptive App Icon with clean vector Markdown badge (`ic_launcher_foreground.xml`: 40 lines, `ic_launcher_background.xml`: 38 lines, `ic_launcher_monochrome.xml`: 40 lines; completely purging Android robot coordinates, shadows, and default green grid). Resolved screen orientation change document reset in `MainActivity.kt` by strictly guarding `handleIntent` behind `if (savedInstanceState == null)`, adding `onSaveInstanceState` restoration, and consuming launch intent extras. Added binary file guard rejecting `.pdf`, `.docx`, `.doc` with user-facing error message. Standalone APK assembled and verified at `app/build/outputs/apk/debug/app-debug.apk`.
+- [x] **Milestone 6.2**: Implemented Quick Note Home Screen App Widget (`androidx.glance:glance-appwidget:1.1.1`), Document Manager Navigation Drawer (`ModalNavigationDrawer`, `DocumentDrawerSheet`) with live Room document observation, switching, creation, deletion with confirmation dialog, and SAF document import (`ActivityResultContracts.OpenDocument`). Created pure Material 3 Adaptive App Icon with clean vector Markdown badge (`ic_launcher_foreground.xml`: 40 lines, `ic_launcher_background.xml`: 38 lines, `ic_launcher_monochrome.xml`: 40 lines; completely purging Android robot coordinates, shadows, and default green grid). Resolved screen orientation change document reset in `MainActivity.kt` by strictly guarding `handleIntent` behind `if (savedInstanceState == null)`, adding `onSaveInstanceState` restoration, and consuming launch intent extras. Standalone APK assembled and verified at `app/build/outputs/apk/debug/app-debug.apk`. (Commit: `8c8ffdd`).
+- [x] **Milestone 6.3**: Implemented Android system integration for sharing and file viewing (`android.intent.action.SEND` for `text/plain`, `text/markdown`, `text/x-markdown` and `android.intent.action.VIEW` for `.md`, `.markdown`, `.txt` files from file managers). Added intent handling in `MainActivity` extracting `EXTRA_TEXT`, `EXTRA_STREAM`, and content URIs with automatic document title generation from subject or first non-empty heading. Implemented universal binary and media file protection in `EditorViewModel` with comprehensive extension blacklisting (images, office documents, audio/video, archives, executables) and null-byte buffer sniffing (`content.take(4096).contains('\u0000')`) preventing garbled binary imports. Restricted system file picker MIME filter in `EditorScreen` to text formats. Full unit test suite and standalone APK assembly verified.
+- [x] **Milestone 6.3+**: Implemented multi-format document-to-Markdown conversion engine in `:domain` and `:data` supporting Word documents (`.docx` OpenXML ZIP + DOM with heading, bold/italic, lists, and table extraction), Excel spreadsheets (`.xlsx` OpenXML shared strings + sheet XML to Markdown tables), PDF documents (`.pdf` via `pdfbox-android` with font size heading heuristics, font style bold/italic recognition, bullet lists, page dividers, and best-effort toast notice), HTML documents (`.html`/`.htm` via JSoup DOM), Tabular data (`.csv`/`.tsv` with quoted multiline field parsing), and structured code/data (`.json`, `.xml`, `.yaml`, `.yml` into fenced code blocks). Preserved universal binary/image/audio/archive filter. Full unit test suite and standalone APK assembly verified.
 
 ## Immediate Next Steps
-1. **Milestone 6.3**: System integration: Android `ACTION_SEND` text receiving target & universal binary/image file guard.
-2. **Milestone 6.4**: Document security: Biometric gate using `androidx.biometric:biometric` for protected files.
-3. **App Release**: Release keystore signing configuration, ProGuard/R8 obfuscation rules for `:app`, and release APK generation.
+1. **Milestone 6.4**: Document security: Biometric gate using `androidx.biometric:biometric` for protected files.
+2. **App Release**: Release keystore signing configuration, ProGuard/R8 obfuscation rules for `:app`, and release APK generation.
 
 ## Key Architecture Decisions (ADR Log)
 | Date       | Decision                                      | Context & Rationale                                                                                                                                                                                | Status   |
@@ -67,7 +68,10 @@
 | 2026-09-11 | Fast Typing Reconciliation & Debounce        | Decoupled local Compose `BasicTextField` state from asynchronous Myers diffing and Room persistence. Tracked `lastSentText` in `LaunchedEffect(block.rawContent)` to prevent remote state echoes from snapping the cursor back 1 position during rapid input (> 60 WPM). Debounced Room snapshots and AST re-parsing by 300 ms in `EditorViewModel`. | ACCEPTED |
 | 2026-09-11 | Chained Visual Search Highlighting & Selection | Chained `SearchHighlightVisualTransformation` over syntax highlighting using `SpanStyle(background = Color(0x66FFEB3B))` for all matches and `Color(0xFFFF9800)` for active match. Wrapped `MarkdownPreviewPane` in Compose `SelectionContainer` enabling native OS text selection and clipboard operations. Added horizontal scroll to document title in `EditorTopBar`. | ACCEPTED |
 | 2026-09-12 | Glance Widget & Document Manager Drawer       | Implemented Glance AppWidget with EntryPoint accessing Room repository and 1-tap note launcher. Integrated `ModalNavigationDrawer` (`DocumentDrawerSheet`) providing document listing, creation, deletion with confirm dialog, and SAF file import (`ActivityResultContracts.OpenDocument`). Designed Material 3 adaptive icon with monochrome masking. | ACCEPTED |
-| 2026-09-12 | Configuration Change Retention & Icon Purification | Eliminated unconditioned `handleIntent` in `MainActivity.kt`, strictly gating launch intents behind `if (savedInstanceState == null)` and consuming extras. Saved active document in `onSaveInstanceState` to guarantee zero state resets on orientation changes. Purged legacy Android robot paths and green grid lines from `ic_launcher_foreground.xml` (39 lines) and `ic_launcher_background.xml` (37 lines). | ACCEPTED |
+| 2026-09-12 | Configuration Change Retention & Icon Purification | Eliminated unconditioned `handleIntent` in `MainActivity.kt`, strictly gating launch intents behind `if (savedInstanceState == null)` and consuming extras. Saved active document in `onSaveInstanceState` to guarantee zero state resets on orientation changes. Purged legacy Android robot paths and green grid lines from `ic_launcher_foreground.xml` (40 lines) and `ic_launcher_background.xml` (38 lines). | ACCEPTED |
+| 2026-09-12 | System Intent Handlers & Universal Binary Filter | Configured ACTION_SEND and ACTION_VIEW in AndroidManifest and MainActivity with EXTRA_TEXT / EXTRA_STREAM / ContentResolver resolution. Guarded against binary imports via comprehensive extension blacklist (images, office documents, media, archives) and null-byte buffer inspection (content.take(4096).contains('\u0000')), emitting typed user errors instead of parsing corrupt symbols. | ACCEPTED |
+| 2026-09-12 | Multi-Format Document Converter Engine        | Implemented clean Clean Architecture document conversion pipeline in `:domain` (`DocumentConverter`, `ConvertedDocument`, `ConvertDocumentUseCase`) and `:data` (`DocxToMarkdownConverter`, `XlsxToMarkdownConverter`, `PdfToMarkdownConverter` using `pdfbox-android`, `HtmlToMarkdownConverter` using `jsoup`, `CsvToMarkdownConverter`, `CompositeDocumentConverter`). Offloaded conversion I/O to `Dispatchers.IO` and raw binary byte preservation in `MainActivity` and `EditorScreen` avoiding UTF-8 corruption. | ACCEPTED |
+| 2026-09-12 | Personalized APK Output Naming                | Configured `base.archivesName.set("MarkdownEditor-v1.0")` in `app/build.gradle.kts` producing personalized APK artifacts (`MarkdownEditor-v1.0-debug.apk` / `MarkdownEditor-v1.0-release.apk`) instead of generic `app-debug.apk`. | ACCEPTED |
 
 ## Technical Baseline & Chosen Versions
 - **Kotlin:** `2.4.20`
@@ -79,6 +83,8 @@
 - **KSP:** `2.3.6`
 - **commonmark-java:** `0.30.0`
 - **java-diff-utils:** `4.17`
+- **pdfbox-android:** `2.0.27.0`
+- **jsoup:** `1.18.3`
 - **Coroutines:** `1.11.0`
 - **JUnit 5 (Jupiter):** `6.1.3`
 - **MockK:** `1.14.11`
@@ -87,5 +93,5 @@
 - **SDK Constraints:** `minSdk = 26`, `targetSdk = 37`, `compileSdk = 37`
 
 ## Session Handoff Block
-- **Last Verified State:** Milestone 6.2 (Quick Note App Widget via Jetpack Glance), Document Manager Navigation Drawer, Pure Vector Markdown Icon, and Standalone APK build are complete and verified. Configuration change document retention fixed; binary Word/PDF file rejection implemented with user warning; all 98/98 test tasks and debug APK assembly (`assembleDebug`) passing cleanly. APK output generated at `app/build/outputs/apk/debug/app-debug.apk`.
-- **Exact Resumption Command/Action:** Prompt the user for approval to commit unified Commit 13: `feat(presentation,app): implement quick note app widget, document manager drawer, and material 3 adaptive icon`. Once committed, proceed to Milestone 6.3 (System integration: `ACTION_SEND` text receiver).
+- **Last Verified State:** Milestones 6.3 and 6.3+ (System integration: `ACTION_SEND` / `ACTION_VIEW`, personalized APK naming `MarkdownEditor-v1.0-debug.apk`, and Multi-Format Document-to-Markdown Converter Engine for DOCX, XLSX, PDF, HTML, CSV, JSON/XML/YAML with universal binary filter) are complete and committed. Full test suite (98/98 test tasks) and standalone debug APK assembly (`assembleDebug`) passing cleanly. Output generated at `app/build/outputs/apk/debug/MarkdownEditor-v1.0-debug.apk` (35 MB).
+- **Exact Resumption Command/Action:** Proceed to Milestone 6.4 (Biometric document protection using `androidx.biometric:biometric`).

@@ -81,7 +81,11 @@ sealed interface EditorIntent : UiIntent {
     data class ToggleDrawer(val open: Boolean? = null) : EditorIntent
     data object CreateNewDocument : EditorIntent
     data class DeleteDocument(val documentId: String) : EditorIntent
-    data class OpenExternalDocument(val fileName: String, val content: String) : EditorIntent
+    data class OpenExternalDocument(
+        val fileName: String,
+        val content: String = "",
+        val rawBytes: ByteArray? = null
+    ) : EditorIntent
 }
 
 /**

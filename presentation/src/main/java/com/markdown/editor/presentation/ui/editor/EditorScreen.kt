@@ -95,10 +95,15 @@ fun EditorScreen(
                         fileName = cursor.getString(nameIndex)
                     }
                 }
-                val content = context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    inputStream.bufferedReader().readText()
-                } ?: ""
-                onIntent(EditorIntent.OpenExternalDocument(fileName = fileName, content = content))
+                val bytes = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    inputStream.readBytes()
+                } ?: ByteArray(0)
+                val extension = fileName.substringAfterLast('.', "").lowercase()
+                val textExtensions = setOf("md", "markdown", "txt", "text", "log", "json", "xml", "yaml", "yml", "csv", "tsv", "html", "htm")
+                val content = if (extension in textExtensions) {
+                    try { bytes.toString(Charsets.UTF_8) } catch (_: Exception) { "" }
+                } else ""
+                onIntent(EditorIntent.OpenExternalDocument(fileName = fileName, content = content, rawBytes = bytes))
             } catch (_: Exception) {
                 // Ignore or handle
             }
@@ -151,7 +156,21 @@ fun EditorScreen(
                 onIntent = onIntent,
                 onOpenFile = {
                     onIntent(EditorIntent.ToggleDrawer(false))
-                    filePickerLauncher.launch(arrayOf("text/*", "text/plain", "text/markdown", "*/*"))
+                    filePickerLauncher.launch(arrayOf("text/plain", "text/markdown", "text/x-markdown", "text/*"))
+                    filePickerLauncher.launch(
+                        arrayOf(
+                            "text/plain",
+                            "text/markdown",
+                            "text/x-markdown",
+                            "application/pdf",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            "text/csv",
+                            "text/html",
+                            "application/json",
+                            "text/*"
+                        )
+                    )
                 }
             )
         },
