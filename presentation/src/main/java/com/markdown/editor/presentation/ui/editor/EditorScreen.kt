@@ -1,5 +1,8 @@
 package com.markdown.editor.presentation.ui.editor
 
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -13,12 +16,15 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -32,6 +38,7 @@ import com.markdown.editor.presentation.editor.EditorIntent
 import com.markdown.editor.presentation.editor.EditorUiState
 import com.markdown.editor.presentation.editor.EditorViewMode
 import com.markdown.editor.presentation.ui.block.MarkdownBlockItem
+import com.markdown.editor.presentation.ui.drawer.DocumentDrawerSheet
 import com.markdown.editor.presentation.ui.preview.MarkdownPreviewPane
 import com.markdown.editor.presentation.ui.search.FindReplaceBar
 import com.markdown.editor.presentation.ui.sync.rememberSynchronizedScroll
@@ -60,6 +67,43 @@ fun EditorScreen(
     )
 
     val context = androidx.compose.ui.platform.LocalContext.current
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+    LaunchedEffect(state.isDrawerOpen) {
+        if (state.isDrawerOpen && drawerState.isClosed) {
+            drawerState.open()
+        } else if (!state.isDrawerOpen && drawerState.isOpen) {
+            drawerState.close()
+        }
+    }
+
+    LaunchedEffect(drawerState.isOpen) {
+        if (drawerState.isOpen != state.isDrawerOpen) {
+            onIntent(EditorIntent.ToggleDrawer(drawerState.isOpen))
+        }
+    }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                var fileName = "Imported Note"
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1 && cursor.moveToFirst()) {
+                        fileName = cursor.getString(nameIndex)
+                    }
+                }
+                val content = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    inputStream.bufferedReader().readText()
+                } ?: ""
+                onIntent(EditorIntent.OpenExternalDocument(fileName = fileName, content = content))
+            } catch (_: Exception) {
+                // Ignore or handle
+            }
+        }
+    }
 
     LaunchedEffect(effects) {
         effects.collect { effect ->
@@ -99,132 +143,147 @@ fun EditorScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            EditorTopBar(
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            DocumentDrawerSheet(
                 state = state,
-                onIntent = onIntent
+                onIntent = onIntent,
+                onOpenFile = {
+                    onIntent(EditorIntent.ToggleDrawer(false))
+                    filePickerLauncher.launch(arrayOf("text/*", "text/plain", "text/markdown", "*/*"))
+                }
             )
         },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        modifier = modifier.imePadding()
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            if (state.isFindReplaceVisible) {
-                FindReplaceBar(
-                    searchQuery = state.searchQuery,
-                    replaceQuery = state.replaceQuery,
-                    currentMatchIndex = state.currentMatchIndex,
-                    totalMatches = state.findMatches.size,
-                    isCaseSensitive = state.isCaseSensitive,
-                    onSearchQueryChange = { q -> onIntent(EditorIntent.SetSearchQuery(q)) },
-                    onReplaceQueryChange = { q -> onIntent(EditorIntent.SetReplaceQuery(q)) },
-                    onNextMatch = { onIntent(EditorIntent.FindNextMatch) },
-                    onPreviousMatch = { onIntent(EditorIntent.FindPreviousMatch) },
-                    onToggleCaseSensitive = { cs -> onIntent(EditorIntent.SetCaseSensitive(cs)) },
-                    onReplace = { onIntent(EditorIntent.ReplaceCurrentMatch) },
-                    onReplaceAll = { onIntent(EditorIntent.ReplaceAllMatches) },
-                    onClose = { onIntent(EditorIntent.ToggleFindReplace(visible = false)) }
+        gesturesEnabled = true
+    ) {
+        Scaffold(
+            topBar = {
+                EditorTopBar(
+                    state = state,
+                    onIntent = onIntent
                 )
-            }
-
-            Box(
+            },
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            modifier = modifier.imePadding()
+        ) { innerPadding ->
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
+                    .fillMaxSize()
+                    .padding(innerPadding)
             ) {
-                if (state.isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                } else {
-                    val activeMatch = state.findMatches.getOrNull(state.currentMatchIndex)
-                    when (state.viewMode) {
-                        EditorViewMode.EDITOR_ONLY -> {
-                            EditorPane(
-                                blocks = state.blocks,
-                                focusedBlockId = state.focusedBlockId,
-                                cursorPosition = state.cursorPosition,
-                                searchQuery = state.searchQuery,
-                                isCaseSensitive = state.isCaseSensitive,
-                                activeMatch = activeMatch,
-                                onIntent = onIntent,
-                                listState = editorListState
-                            )
-                        }
-                        EditorViewMode.PREVIEW_ONLY -> {
-                            MarkdownPreviewPane(
-                                blocks = state.blocks,
-                                searchQuery = state.searchQuery,
-                                isCaseSensitive = state.isCaseSensitive,
-                                listState = previewListState
-                            )
-                        }
-                        EditorViewMode.SPLIT_VIEW -> {
-                            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                                if (maxWidth >= 600.dp) {
-                                    Row(modifier = Modifier.fillMaxSize()) {
-                                        EditorPane(
-                                            blocks = state.blocks,
-                                            focusedBlockId = state.focusedBlockId,
-                                            cursorPosition = state.cursorPosition,
-                                            searchQuery = state.searchQuery,
-                                            isCaseSensitive = state.isCaseSensitive,
-                                            activeMatch = activeMatch,
-                                            onIntent = onIntent,
-                                            listState = editorListState,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        VerticalDivider(
-                                            color = MaterialTheme.colorScheme.outlineVariant,
-                                            thickness = 1.dp
-                                        )
-                                        MarkdownPreviewPane(
-                                            blocks = state.blocks,
-                                            searchQuery = state.searchQuery,
-                                            isCaseSensitive = state.isCaseSensitive,
-                                            listState = previewListState,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                } else {
-                                    Column(modifier = Modifier.fillMaxSize()) {
-                                        EditorPane(
-                                            blocks = state.blocks,
-                                            focusedBlockId = state.focusedBlockId,
-                                            cursorPosition = state.cursorPosition,
-                                            searchQuery = state.searchQuery,
-                                            isCaseSensitive = state.isCaseSensitive,
-                                            activeMatch = activeMatch,
-                                            onIntent = onIntent,
-                                            listState = editorListState,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        HorizontalDivider(
-                                            color = MaterialTheme.colorScheme.outlineVariant,
-                                            thickness = 1.dp
-                                        )
-                                        MarkdownPreviewPane(
-                                            blocks = state.blocks,
-                                            searchQuery = state.searchQuery,
-                                            isCaseSensitive = state.isCaseSensitive,
-                                            listState = previewListState,
-                                            modifier = Modifier.weight(1f)
-                                        )
+                if (state.isFindReplaceVisible) {
+                    FindReplaceBar(
+                        searchQuery = state.searchQuery,
+                        replaceQuery = state.replaceQuery,
+                        currentMatchIndex = state.currentMatchIndex,
+                        totalMatches = state.findMatches.size,
+                        isCaseSensitive = state.isCaseSensitive,
+                        onSearchQueryChange = { q -> onIntent(EditorIntent.SetSearchQuery(q)) },
+                        onReplaceQueryChange = { q -> onIntent(EditorIntent.SetReplaceQuery(q)) },
+                        onNextMatch = { onIntent(EditorIntent.FindNextMatch) },
+                        onPreviousMatch = { onIntent(EditorIntent.FindPreviousMatch) },
+                        onToggleCaseSensitive = { cs -> onIntent(EditorIntent.SetCaseSensitive(cs)) },
+                        onReplace = { onIntent(EditorIntent.ReplaceCurrentMatch) },
+                        onReplaceAll = { onIntent(EditorIntent.ReplaceAllMatches) },
+                        onClose = { onIntent(EditorIntent.ToggleFindReplace(visible = false)) }
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    } else {
+                        val activeMatch = state.findMatches.getOrNull(state.currentMatchIndex)
+                        when (state.viewMode) {
+                            EditorViewMode.EDITOR_ONLY -> {
+                                EditorPane(
+                                    blocks = state.blocks,
+                                    focusedBlockId = state.focusedBlockId,
+                                    cursorPosition = state.cursorPosition,
+                                    searchQuery = state.searchQuery,
+                                    isCaseSensitive = state.isCaseSensitive,
+                                    activeMatch = activeMatch,
+                                    onIntent = onIntent,
+                                    listState = editorListState
+                                )
+                            }
+                            EditorViewMode.PREVIEW_ONLY -> {
+                                MarkdownPreviewPane(
+                                    blocks = state.blocks,
+                                    searchQuery = state.searchQuery,
+                                    isCaseSensitive = state.isCaseSensitive,
+                                    listState = previewListState
+                                )
+                            }
+                            EditorViewMode.SPLIT_VIEW -> {
+                                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                    if (maxWidth >= 600.dp) {
+                                        Row(modifier = Modifier.fillMaxSize()) {
+                                            EditorPane(
+                                                blocks = state.blocks,
+                                                focusedBlockId = state.focusedBlockId,
+                                                cursorPosition = state.cursorPosition,
+                                                searchQuery = state.searchQuery,
+                                                isCaseSensitive = state.isCaseSensitive,
+                                                activeMatch = activeMatch,
+                                                onIntent = onIntent,
+                                                listState = editorListState,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            VerticalDivider(
+                                                color = MaterialTheme.colorScheme.outlineVariant,
+                                                thickness = 1.dp
+                                            )
+                                            MarkdownPreviewPane(
+                                                blocks = state.blocks,
+                                                searchQuery = state.searchQuery,
+                                                isCaseSensitive = state.isCaseSensitive,
+                                                listState = previewListState,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                    } else {
+                                        Column(modifier = Modifier.fillMaxSize()) {
+                                            EditorPane(
+                                                blocks = state.blocks,
+                                                focusedBlockId = state.focusedBlockId,
+                                                cursorPosition = state.cursorPosition,
+                                                searchQuery = state.searchQuery,
+                                                isCaseSensitive = state.isCaseSensitive,
+                                                activeMatch = activeMatch,
+                                                onIntent = onIntent,
+                                                listState = editorListState,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            HorizontalDivider(
+                                                color = MaterialTheme.colorScheme.outlineVariant,
+                                                thickness = 1.dp
+                                            )
+                                            MarkdownPreviewPane(
+                                                blocks = state.blocks,
+                                                searchQuery = state.searchQuery,
+                                                isCaseSensitive = state.isCaseSensitive,
+                                                listState = previewListState,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            if (state.viewMode != EditorViewMode.PREVIEW_ONLY) {
-                com.markdown.editor.presentation.ui.toolbar.MarkdownAccessoryToolbar(
-                    onIntent = onIntent
-                )
+                if (state.viewMode != EditorViewMode.PREVIEW_ONLY) {
+                    com.markdown.editor.presentation.ui.toolbar.MarkdownAccessoryToolbar(
+                        onIntent = onIntent
+                    )
+                }
             }
         }
     }
@@ -275,4 +334,3 @@ private fun EditorPane(
         }
     }
 }
-

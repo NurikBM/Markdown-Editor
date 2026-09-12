@@ -2,9 +2,9 @@
 
 ## Active State
 - **Current Phase:** Phase 6 — Extended Product Polish
-- **Current Milestone:** Milestone 6.2 — Quick Note App Widget (Jetpack Glance)
-- **Active Subtask:** Subtask 6.2.1 — Glance widget dependencies, data contract, and initial widget layout
-- **Status:** IN_PROGRESS
+- **Current Milestone:** Milestone 6.2 — Quick Note App Widget (Jetpack Glance), Document Manager Drawer & Adaptive Icon
+- **Active Subtask:** Commit 13 Execution & Milestone 6.3 Transition
+- **Status:** VERIFIED
 
 ## Completed Milestones
 - [x] **Milestone 1.1**: Bootstrap multi-module architecture (`:core`, `:domain`, `:data`, `:presentation`, `:app`) with verified Gradle sync and compilation across all layers. Created `AGENTS.md`, `STATE.md`, and version catalog `gradle/libs.versions.toml`.
@@ -30,12 +30,12 @@
   3. Native text selection and copying in `MarkdownPreviewPane` via `SelectionContainer`.
   4. Real-time visual search match highlighting (`SearchHighlightVisualTransformation`) in Editor and Preview with active match accent and case-sensitive ("Aa") toggle.
   (Commit: `b1dffbf`).
+- [x] **Milestone 6.2**: Implemented Quick Note Home Screen App Widget (`androidx.glance:glance-appwidget:1.1.1`), Document Manager Navigation Drawer (`ModalNavigationDrawer`, `DocumentDrawerSheet`) with live Room document observation, switching, creation, deletion with confirmation dialog, and SAF document import (`ActivityResultContracts.OpenDocument`). Created pure Material 3 Adaptive App Icon with clean vector Markdown badge (`ic_launcher_foreground.xml`: 40 lines, `ic_launcher_background.xml`: 38 lines, `ic_launcher_monochrome.xml`: 40 lines; completely purging Android robot coordinates, shadows, and default green grid). Resolved screen orientation change document reset in `MainActivity.kt` by strictly guarding `handleIntent` behind `if (savedInstanceState == null)`, adding `onSaveInstanceState` restoration, and consuming launch intent extras. Added binary file guard rejecting `.pdf`, `.docx`, `.doc` with user-facing error message. Standalone APK assembled and verified at `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Immediate Next Steps
-1. **Milestone 6.2**: Quick Note app widget implemented using Jetpack Glance (`androidx.glance:glance-appwidget`).
-2. **Milestone 6.3**: System integration: Android `ACTION_SEND` text receiving target.
-3. **Milestone 6.4**: Document security: Biometric gate using `androidx.biometric:biometric` for protected files.
-4. **App Delivery & Polish**: Document picker / file manager integration and standalone release APK generation instructions.
+1. **Milestone 6.3**: System integration: Android `ACTION_SEND` text receiving target & universal binary/image file guard.
+2. **Milestone 6.4**: Document security: Biometric gate using `androidx.biometric:biometric` for protected files.
+3. **App Release**: Release keystore signing configuration, ProGuard/R8 obfuscation rules for `:app`, and release APK generation.
 
 ## Key Architecture Decisions (ADR Log)
 | Date       | Decision                                      | Context & Rationale                                                                                                                                                                                | Status   |
@@ -66,6 +66,8 @@
 | 2026-09-11 | Adaptive Portrait TopBar & Keyboard Accessory Bar | Created `MarkdownAccessoryToolbar` docked above the soft keyboard (`imePadding()`). Built adaptive `EditorTopBar` collapsing secondary actions into `MoreVert` on compact screens (< 600dp) so document title retains ample editing space in portrait. Integrated Material 3 dynamic color and pure `#000000` AMOLED dark theme. | ACCEPTED |
 | 2026-09-11 | Fast Typing Reconciliation & Debounce        | Decoupled local Compose `BasicTextField` state from asynchronous Myers diffing and Room persistence. Tracked `lastSentText` in `LaunchedEffect(block.rawContent)` to prevent remote state echoes from snapping the cursor back 1 position during rapid input (> 60 WPM). Debounced Room snapshots and AST re-parsing by 300 ms in `EditorViewModel`. | ACCEPTED |
 | 2026-09-11 | Chained Visual Search Highlighting & Selection | Chained `SearchHighlightVisualTransformation` over syntax highlighting using `SpanStyle(background = Color(0x66FFEB3B))` for all matches and `Color(0xFFFF9800)` for active match. Wrapped `MarkdownPreviewPane` in Compose `SelectionContainer` enabling native OS text selection and clipboard operations. Added horizontal scroll to document title in `EditorTopBar`. | ACCEPTED |
+| 2026-09-12 | Glance Widget & Document Manager Drawer       | Implemented Glance AppWidget with EntryPoint accessing Room repository and 1-tap note launcher. Integrated `ModalNavigationDrawer` (`DocumentDrawerSheet`) providing document listing, creation, deletion with confirm dialog, and SAF file import (`ActivityResultContracts.OpenDocument`). Designed Material 3 adaptive icon with monochrome masking. | ACCEPTED |
+| 2026-09-12 | Configuration Change Retention & Icon Purification | Eliminated unconditioned `handleIntent` in `MainActivity.kt`, strictly gating launch intents behind `if (savedInstanceState == null)` and consuming extras. Saved active document in `onSaveInstanceState` to guarantee zero state resets on orientation changes. Purged legacy Android robot paths and green grid lines from `ic_launcher_foreground.xml` (39 lines) and `ic_launcher_background.xml` (37 lines). | ACCEPTED |
 
 ## Technical Baseline & Chosen Versions
 - **Kotlin:** `2.4.20`
@@ -81,17 +83,9 @@
 - **JUnit 5 (Jupiter):** `6.1.3`
 - **MockK:** `1.14.11`
 - **Turbine:** `1.2.1`
+- **Glance:** `1.1.1`
 - **SDK Constraints:** `minSdk = 26`, `targetSdk = 37`, `compileSdk = 37`
 
 ## Session Handoff Block
-- **Last Verified State:** Milestone 5.2 complete and verified. Full unit test suite (`testDebugUnitTest` and `:domain:test`) passing with 100% success across all 5 modules. Full APK assembly (`assembleDebug`) verified. Standalone HTML export with CSS, PDF printing via Android PrintManager, and Markdown share sheet fully operational. Clean-history branch prepared for user review.
-- **Exact Resumption Command/Action:** Verify and finalize clean-history branch, then proceed to Milestone 5.3: Syntax highlighting for fenced code blocks using regex-based tokenization.
-- **Last Verified State:** Milestone 5.3 complete and verified. Full unit test suite (`testDebugUnitTest` and `:domain:test`) passing with 100% success across all 5 modules (100+ tests). Full APK assembly (`assembleDebug`) verified. Real-time syntax highlighting in editor and preview pane fully operational for Kotlin, Java, Python, JS/TS, JSON, SQL, XML, and Markdown.
-- **Exact Resumption Command/Action:** Proceed to Milestone 5.4: Table of Contents (ToC) generation directly from AST Heading blocks with click-to-scroll navigation.
-- **Last Verified State:** Milestone 5.4 complete and verified. Full unit test suite (`testDebugUnitTest` and `:domain:test`) passing with 100% success across all 5 modules (100+ tests). Full APK assembly (`assembleDebug`) verified. Hierarchical Table of Contents with click-to-scroll navigation fully functional. Git working tree clean of uncommitted changes except working changes prepared for Commit 11 (deferred per user instruction).
-- **Exact Resumption Command/Action:** Proceed to Milestone 5.5: In-document Find & Replace across block boundaries. Upon completion of 5.5, request user command to create unified Commit 11.
-- **Last Verified State:** Milestones 5.4 (Table of Contents) and 5.5 (In-document Find & Replace) along with critical IME/cursor input bugfixes are fully implemented and verified. Full test suite (100% passing across `:domain`, `:core`, `:data`, `:presentation`, and `:app`) and debug APK assembly (`assembleDebug`) completed cleanly with zero warnings or errors. Working tree dirty and staged for unified Commit 11 per user instruction.
-- **Exact Resumption Command/Action:** Prompt the user for approval to commit unified Commit 11: `feat(presentation): implement document navigation suite with table of contents and in-editor find and replace`. Once committed, proceed to Milestone 5.6 (Markdown Quick Formatting Toolbar) and Milestone 6.1 (Material 3 Dynamic Theming).
-- **Last Verified State:** Milestones 5.6 (Markdown Accessory Toolbar & Smart Input) and 6.1 (Material 3 Dynamic Theming & AMOLED Mode) are fully implemented and verified. Full test suite (100% passing across `:domain`, `:core`, `:data`, `:presentation`, and `:app`) and debug APK assembly (`assembleDebug`) completed cleanly with zero errors.
-- **Last Verified State:** Milestones 5.6 (Markdown Accessory Toolbar & Smart Input) and 6.1 (Material 3 Dynamic Theming & AMOLED Mode) together with the 4 user beta UX enhancements (fast typing debounce, horizontal title scroll, preview text selection, and visual search highlighting) are fully implemented and verified. Full test suite (100% passing across `:domain`, `:core`, `:data`, `:presentation`, and `:app`) and debug APK assembly (`assembleDebug`) completed cleanly with zero errors.
-- **Exact Resumption Command/Action:** Prompt the user for approval to commit unified Commit 12: `feat(presentation): implement markdown accessory toolbar and material 3 dynamic theming`. Once committed, proceed to Milestone 6.2 (Quick Note App Widget via Jetpack Glance).
+- **Last Verified State:** Milestone 6.2 (Quick Note App Widget via Jetpack Glance), Document Manager Navigation Drawer, Pure Vector Markdown Icon, and Standalone APK build are complete and verified. Configuration change document retention fixed; binary Word/PDF file rejection implemented with user warning; all 98/98 test tasks and debug APK assembly (`assembleDebug`) passing cleanly. APK output generated at `app/build/outputs/apk/debug/app-debug.apk`.
+- **Exact Resumption Command/Action:** Prompt the user for approval to commit unified Commit 13: `feat(presentation,app): implement quick note app widget, document manager drawer, and material 3 adaptive icon`. Once committed, proceed to Milestone 6.3 (System integration: `ACTION_SEND` text receiver).

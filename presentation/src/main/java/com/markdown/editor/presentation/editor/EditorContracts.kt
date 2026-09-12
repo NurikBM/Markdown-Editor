@@ -45,6 +45,8 @@ data class EditorUiState(
     val focusedBlockId: BlockId? = null,
     val cursorPosition: Int = 0,
     val selectionEnd: Int = 0,
+    val recentDocuments: List<com.markdown.editor.domain.model.DocumentMetadata> = emptyList(),
+    val isDrawerOpen: Boolean = false,
     val errorMessage: String? = null
 ) : UiState
 
@@ -76,6 +78,10 @@ sealed interface EditorIntent : UiIntent {
     data object ReplaceAllMatches : EditorIntent
     data class ApplyFormatting(val action: MarkdownFormatAction) : EditorIntent
     data class SetTheme(val theme: AppTheme) : EditorIntent
+    data class ToggleDrawer(val open: Boolean? = null) : EditorIntent
+    data object CreateNewDocument : EditorIntent
+    data class DeleteDocument(val documentId: String) : EditorIntent
+    data class OpenExternalDocument(val fileName: String, val content: String) : EditorIntent
 }
 
 /**

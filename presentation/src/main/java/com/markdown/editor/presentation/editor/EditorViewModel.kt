@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.markdown.editor.core.dispatcher.DispatcherProvider
 import com.markdown.editor.domain.diff.DiffCalculator
 import com.markdown.editor.domain.model.BlockId
+import com.markdown.editor.domain.model.BlockType
 import com.markdown.editor.domain.model.DocumentSnapshot
 import com.markdown.editor.domain.model.ExportFormat
 import com.markdown.editor.domain.model.FindMatch
@@ -11,6 +12,7 @@ import com.markdown.editor.domain.model.MarkdownBlock
 import com.markdown.editor.domain.model.MarkdownDocument
 import com.markdown.editor.domain.model.MarkdownFormatAction
 import com.markdown.editor.domain.model.TableOfContentsItem
+import java.util.UUID
 import com.markdown.editor.domain.parser.MarkdownBlockParser
 import com.markdown.editor.domain.repository.MarkdownRepository
 import com.markdown.editor.domain.repository.SnapshotRepository
@@ -58,6 +60,14 @@ class EditorViewModel(
     private var typingJob: Job? = null
     private val typingBaselineContent = mutableMapOf<BlockId, String>()
 
+    init {
+        viewModelScope.launch {
+            markdownRepository.observeAllMetadata().collect { metadataList ->
+                updateState { copy(recentDocuments = metadataList) }
+            }
+        }
+    }
+
     override fun processIntent(intent: EditorIntent) {
         when (intent) {
             is EditorIntent.LoadDocument -> loadDocument(intent.documentId)
@@ -76,6 +86,10 @@ class EditorViewModel(
             is EditorIntent.SetCaseSensitive -> setCaseSensitive(intent.caseSensitive)
             is EditorIntent.ApplyFormatting -> applyFormatting(intent.action)
             is EditorIntent.SetTheme -> setTheme(intent.theme)
+            is EditorIntent.ToggleDrawer -> toggleDrawer(intent.open)
+            is EditorIntent.CreateNewDocument -> createNewDocument()
+            is EditorIntent.DeleteDocument -> deleteDocument(intent.documentId)
+            is EditorIntent.OpenExternalDocument -> openExternalDocument(intent.fileName, intent.content)
             EditorIntent.FindNextMatch -> findNextMatch()
             EditorIntent.FindPreviousMatch -> findPreviousMatch()
             EditorIntent.ReplaceCurrentMatch -> replaceCurrentMatch()
@@ -346,6 +360,7 @@ class EditorViewModel(
                         isLoading = false,
                         canUndo = false,
                         canRedo = false,
+                        isDrawerOpen = false,
                         focusedBlockId = activeDoc.blocks.firstOrNull()?.id,
                         cursorPosition = 0,
                         selectionEnd = 0
@@ -375,6 +390,7 @@ class EditorViewModel(
                         isLoading = false,
                         canUndo = false,
                         canRedo = false,
+                        isDrawerOpen = false,
                         focusedBlockId = defaultDoc.blocks.firstOrNull()?.id,
                         cursorPosition = 0,
                         selectionEnd = 0,
@@ -779,5 +795,116 @@ class EditorViewModel(
             title = state.title,
             blocks = state.blocks
         )
+    }
+
+    private fun toggleDrawer(open: Boolean?) {
+        updateState { copy(isDrawerOpen = open ?: !isDrawerOpen) }
+    }
+
+    private fun createNewDocument() {
+        viewModelScope.launch {
+            typingJob?.cancel()
+            val newId = "doc_${System.currentTimeMillis()}"
+            val initialDoc = createInitialEmptyDocument(newId)
+            withContext(dispatcherProvider.io) {
+                markdownRepository.saveDocument(initialDoc)
+            }
+            undoStack.clear()
+            redoStack.clear()
+            val toc = generateTableOfContentsUseCase(initialDoc.blocks)
+            updateState {
+                copy(
+                    documentId = initialDoc.id,
+                    title = initialDoc.title,
+                    blocks = initialDoc.blocks,
+                    tableOfContents = toc,
+                    isLoading = false,
+                    canUndo = false,
+                    canRedo = false,
+                    isDrawerOpen = false,
+                    focusedBlockId = initialDoc.blocks.firstOrNull()?.id,
+                    cursorPosition = 0,
+                    selectionEnd = 0
+                )
+            }
+            sendEffect(EditorEffect.ShowToast("Created new document"))
+        }
+    }
+
+    private fun createInitialEmptyDocument(id: String): MarkdownDocument {
+        val block = MarkdownBlock(
+            id = BlockId(UUID.randomUUID().toString()),
+            rawContent = "",
+            type = BlockType.Paragraph
+        )
+        return MarkdownDocument(
+            id = id,
+            title = "New Document",
+            blocks = listOf(block)
+        )
+    }
+
+    private fun deleteDocument(documentId: String) {
+        viewModelScope.launch {
+            withContext(dispatcherProvider.io) {
+                markdownRepository.deleteDocument(documentId)
+            }
+            sendEffect(EditorEffect.ShowToast("Document deleted"))
+            if (uiState.value.documentId == documentId) {
+                val remaining = uiState.value.recentDocuments.filter { it.id != documentId }
+                if (remaining.isNotEmpty()) {
+                    loadDocument(remaining.first().id)
+                } else {
+                    createNewDocument()
+                }
+            }
+        }
+    }
+
+    private fun openExternalDocument(fileName: String, content: String) {
+        val lowerName = fileName.lowercase()
+        if (lowerName.endsWith(".pdf") || lowerName.endsWith(".docx") || lowerName.endsWith(".doc")) {
+            sendEffect(EditorEffect.ShowError("PDF and Word documents are binary files. Please select .md or .txt files."))
+            return
+        }
+        viewModelScope.launch {
+            typingJob?.cancel()
+            updateState { copy(isLoading = true) }
+            val docId = "doc_${System.currentTimeMillis()}"
+            val title = fileName.removeSuffix(".md").removeSuffix(".markdown").removeSuffix(".txt")
+            val parsedDoc = withContext(dispatcherProvider.diffAndParsing) {
+                parser.parseDocument(content, docId, title)
+            }
+            val cleanBlocks = if (parsedDoc.blocks.isEmpty()) {
+                listOf(MarkdownBlock(id = BlockId(UUID.randomUUID().toString()), rawContent = "", type = BlockType.Paragraph))
+            } else {
+                parsedDoc.blocks
+            }
+            val doc = MarkdownDocument(id = docId, title = title, blocks = cleanBlocks)
+            withContext(dispatcherProvider.io) {
+                markdownRepository.saveDocument(doc)
+            }
+            undoStack.clear()
+            redoStack.clear()
+            val toc = withContext(dispatcherProvider.diffAndParsing) {
+                generateTableOfContentsUseCase(cleanBlocks)
+            }
+            updateState {
+                copy(
+                    documentId = doc.id,
+                    title = doc.title,
+                    blocks = doc.blocks,
+                    tableOfContents = toc,
+                    isLoading = false,
+                    canUndo = false,
+                    canRedo = false,
+                    isDrawerOpen = false,
+                    focusedBlockId = cleanBlocks.firstOrNull()?.id,
+                    cursorPosition = 0,
+                    selectionEnd = 0
+                )
+            }
+            sendEffect(EditorEffect.ShowToast("Opened $fileName"))
+        }
     }
 }

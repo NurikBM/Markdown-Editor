@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Nightlife
 import androidx.compose.material.icons.filled.Palette
@@ -75,6 +76,14 @@ fun EditorTopBar(
     var showMenu by remember { mutableStateOf(false) }
 
     TopAppBar(
+        navigationIcon = {
+            IconButton(onClick = { onIntent(EditorIntent.ToggleDrawer(true)) }) {
+                Icon(
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "Open Documents Menu"
+                )
+            }
+        },
         title = {
             val scrollState = rememberScrollState()
             var titleValue by remember(state.documentId) {

@@ -665,4 +665,85 @@ class EditorViewModelTest {
 
         assertEquals(com.markdown.editor.presentation.theme.AppTheme.AMOLED, viewModel.uiState.value.appTheme)
     }
+
+    @Test
+    fun `toggleDrawer updates isDrawerOpen state`() = runTest(testDispatcher) {
+        assertFalse(viewModel.uiState.value.isDrawerOpen)
+
+        viewModel.processIntent(EditorIntent.ToggleDrawer(true))
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isDrawerOpen)
+
+        viewModel.processIntent(EditorIntent.ToggleDrawer(false))
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isDrawerOpen)
+    }
+
+    @Test
+    fun `createNewDocument initializes blank document and persists`() = runTest(testDispatcher) {
+        viewModel.processIntent(EditorIntent.CreateNewDocument)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.documentId.startsWith("doc_"))
+        assertEquals("New Document", state.title)
+        assertEquals(1, state.blocks.size)
+        assertEquals("", state.blocks.first().rawContent)
+        assertFalse(state.isDrawerOpen)
+        coVerify { markdownRepository.saveDocument(any(), any()) }
+    }
+
+    @Test
+    fun `deleteDocument removes from repository and cascades to remaining`() = runTest(testDispatcher) {
+        val fullDoc1 = MarkdownDocument(
+            id = "doc-1",
+            title = "Doc 1",
+            blocks = listOf(MarkdownBlock(id = BlockId("b1"), rawContent = "Content 1", type = BlockType.Paragraph))
+        )
+        val fullDoc2 = MarkdownDocument(
+            id = "doc-2",
+            title = "Doc 2",
+            blocks = listOf(MarkdownBlock(id = BlockId("b2"), rawContent = "Content 2", type = BlockType.Paragraph))
+        )
+        coEvery { markdownRepository.getDocument("doc-1") } returns Result.success(fullDoc1)
+        coEvery { markdownRepository.getDocument("doc-2") } returns Result.success(fullDoc2)
+        coEvery { markdownRepository.deleteDocument(any()) } returns Result.success(Unit)
+
+        viewModel.processIntent(EditorIntent.LoadDocument("doc-1"))
+        advanceUntilIdle()
+
+        viewModel.processIntent(EditorIntent.DeleteDocument("doc-1"))
+        advanceUntilIdle()
+
+        coVerify { markdownRepository.deleteDocument("doc-1") }
+    }
+
+    @Test
+    fun `openExternalDocument parses markdown content and persists document`() = runTest(testDispatcher) {
+        val fileName = "Meeting_Notes.md"
+        val rawMarkdown = "# Agenda\n\n- Topic A\n- Topic B"
+
+        viewModel.processIntent(EditorIntent.OpenExternalDocument(fileName = fileName, content = rawMarkdown))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.documentId.startsWith("doc_"))
+        assertEquals("Meeting_Notes", state.title)
+        assertEquals(3, state.blocks.size)
+        assertEquals(BlockType.Heading(1), state.blocks[0].type)
+        assertFalse(state.isDrawerOpen)
+        coVerify { markdownRepository.saveDocument(any(), any()) }
+    }
+
+    @Test
+    fun `openExternalDocument rejects binary formats and emits ShowError`() = runTest(testDispatcher) {
+        viewModel.uiEffect.test {
+            viewModel.processIntent(EditorIntent.OpenExternalDocument(fileName = "Report.pdf", content = "%PDF-1.7..."))
+            advanceUntilIdle()
+
+            val effect = awaitItem()
+            assertTrue(effect is EditorEffect.ShowError)
+            assertTrue((effect as EditorEffect.ShowError).message.contains("binary files"))
+        }
+    }
 }

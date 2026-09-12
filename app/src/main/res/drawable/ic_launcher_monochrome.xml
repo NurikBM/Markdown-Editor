@@ -1,38 +1,38 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Markdown Outer Badge Frame -->
+    <!-- Monochromatic border frame -->
     <path
         android:pathData="M 28,32 H 80 A 8,8 0 0 1 88,40 V 68 A 8,8 0 0 1 80,76 H 28 A 8,8 0 0 1 20,68 V 40 A 8,8 0 0 1 28,32 Z"
         android:strokeWidth="3.2"
-        android:strokeColor="#F8FAFC"
+        android:strokeColor="#FFFFFF"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000" />
-    <!-- Letter M -->
+    <!-- Monochromatic Letter M -->
     <path
         android:pathData="M 29,66 V 42 L 40.5,54 L 52,42 V 66"
         android:strokeWidth="3.8"
-        android:strokeColor="#60A5FA"
+        android:strokeColor="#FFFFFF"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000" />
-    <!-- Downward Arrow Stem -->
+    <!-- Monochromatic Downward Arrow Stem -->
     <path
         android:pathData="M 69,42 V 66"
         android:strokeWidth="3.8"
-        android:strokeColor="#38BDF8"
+        android:strokeColor="#FFFFFF"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000" />
-    <!-- Downward Arrow Head -->
+    <!-- Monochromatic Downward Arrow Head -->
     <path
         android:pathData="M 61,58 L 69,66 L 77,58"
         android:strokeWidth="3.8"
-        android:strokeColor="#38BDF8"
+        android:strokeColor="#FFFFFF"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000" />

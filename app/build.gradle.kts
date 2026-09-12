@@ -62,6 +62,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.material)
 
+    // Jetpack Glance AppWidget
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
+
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 

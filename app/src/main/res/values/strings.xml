@@ -1,1 +1,4 @@
-<resources />
+<resources>
+    <string name="app_name">Markdown Editor</string>
+    <string name="widget_description">Quick access to recent notes and create a new markdown note</string>
+</resources>
