@@ -47,6 +47,8 @@ data class EditorUiState(
     val selectionEnd: Int = 0,
     val recentDocuments: List<com.markdown.editor.domain.model.DocumentMetadata> = emptyList(),
     val isDrawerOpen: Boolean = false,
+    val isDocumentLocked: Boolean = false,
+    val isUnlockedForSession: Boolean = false,
     val errorMessage: String? = null
 ) : UiState
 
@@ -86,6 +88,10 @@ sealed interface EditorIntent : UiIntent {
         val content: String = "",
         val rawBytes: ByteArray? = null
     ) : EditorIntent
+    data class SetDocumentLocked(val isLocked: Boolean) : EditorIntent
+    data object UnlockDocumentSession : EditorIntent
+    data object LockDocumentSession : EditorIntent
+    data object RequestBiometricUnlock : EditorIntent
 }
 
 /**
@@ -98,5 +104,6 @@ sealed interface EditorEffect : UiEffect {
     data class ShowError(val message: String) : EditorEffect
     data class PrintHtml(val jobName: String, val htmlContent: String) : EditorEffect
     data class ShareContent(val title: String, val content: String, val mimeType: String) : EditorEffect
+    data class LaunchBiometricPrompt(val title: String) : EditorEffect
 }
 

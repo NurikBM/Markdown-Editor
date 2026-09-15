@@ -36,7 +36,8 @@ object DataModule {
             context,
             MarkdownDatabase::class.java,
             "markdown_editor.db"
-        ).build()
+        ).addMigrations(MarkdownDatabase.MIGRATION_1_2)
+        .build()
     }
 
     @Provides

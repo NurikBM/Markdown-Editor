@@ -8,11 +8,13 @@ import java.util.UUID
  * @property id Unique document identifier.
  * @property title The title of the document.
  * @property blocks Ordered collection of [MarkdownBlock] instances.
+ * @property isLocked Indicates if the document is protected by biometric / device lock.
  */
 data class MarkdownDocument(
     val id: String = UUID.randomUUID().toString(),
     val title: String = "Untitled",
-    val blocks: List<MarkdownBlock> = emptyList()
+    val blocks: List<MarkdownBlock> = emptyList(),
+    val isLocked: Boolean = false
 ) {
     /**
      * Serializes the document blocks into a continuous Markdown document string.

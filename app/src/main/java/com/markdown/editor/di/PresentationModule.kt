@@ -8,6 +8,7 @@ import com.markdown.editor.domain.parser.MarkdownBlockParser
 import com.markdown.editor.domain.repository.MarkdownRepository
 import com.markdown.editor.domain.repository.SnapshotRepository
 import com.markdown.editor.domain.usecase.ApplyFormattingUseCase
+import com.markdown.editor.domain.usecase.ConvertDocumentUseCase
 import com.markdown.editor.domain.usecase.ExportHtmlUseCase
 import com.markdown.editor.domain.usecase.FindInDocumentUseCase
 import com.markdown.editor.domain.usecase.GenerateTableOfContentsUseCase
@@ -15,6 +16,7 @@ import com.markdown.editor.domain.usecase.MergeBlockUseCase
 import com.markdown.editor.domain.usecase.RedoBlockUseCase
 import com.markdown.editor.domain.usecase.ReplaceInDocumentUseCase
 import com.markdown.editor.domain.usecase.SplitBlockUseCase
+import com.markdown.editor.domain.usecase.ToggleDocumentLockUseCase
 import com.markdown.editor.domain.usecase.UndoBlockUseCase
 import com.markdown.editor.presentation.editor.EditorViewModel
 import dagger.Module
@@ -25,6 +27,7 @@ import dagger.hilt.android.components.ActivityComponent
 /**
  * ViewModel factory providing [EditorViewModel] with domain dependencies.
  */
+@Suppress("kotlin:S107", "LongParameterList")
 class EditorViewModelFactory(
     private val markdownRepository: MarkdownRepository,
     private val snapshotRepository: SnapshotRepository,
@@ -40,7 +43,8 @@ class EditorViewModelFactory(
     private val findInDocumentUseCase: FindInDocumentUseCase,
     private val replaceInDocumentUseCase: ReplaceInDocumentUseCase,
     private val applyFormattingUseCase: ApplyFormattingUseCase,
-    private val convertDocumentUseCase: com.markdown.editor.domain.usecase.ConvertDocumentUseCase
+    private val convertDocumentUseCase: ConvertDocumentUseCase,
+    private val toggleDocumentLockUseCase: ToggleDocumentLockUseCase
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -61,7 +65,8 @@ class EditorViewModelFactory(
                 findInDocumentUseCase = findInDocumentUseCase,
                 replaceInDocumentUseCase = replaceInDocumentUseCase,
                 applyFormattingUseCase = applyFormattingUseCase,
-                convertDocumentUseCase = convertDocumentUseCase
+                convertDocumentUseCase = convertDocumentUseCase,
+                toggleDocumentLockUseCase = toggleDocumentLockUseCase
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
@@ -89,7 +94,8 @@ object PresentationModule {
         findInDocumentUseCase: FindInDocumentUseCase,
         replaceInDocumentUseCase: ReplaceInDocumentUseCase,
         applyFormattingUseCase: ApplyFormattingUseCase,
-        convertDocumentUseCase: com.markdown.editor.domain.usecase.ConvertDocumentUseCase
+        convertDocumentUseCase: ConvertDocumentUseCase,
+        toggleDocumentLockUseCase: ToggleDocumentLockUseCase
     ): EditorViewModelFactory = EditorViewModelFactory(
         markdownRepository = markdownRepository,
         snapshotRepository = snapshotRepository,
@@ -105,6 +111,7 @@ object PresentationModule {
         findInDocumentUseCase = findInDocumentUseCase,
         replaceInDocumentUseCase = replaceInDocumentUseCase,
         applyFormattingUseCase = applyFormattingUseCase,
-        convertDocumentUseCase = convertDocumentUseCase
+        convertDocumentUseCase = convertDocumentUseCase,
+        toggleDocumentLockUseCase = toggleDocumentLockUseCase
     )
 }
