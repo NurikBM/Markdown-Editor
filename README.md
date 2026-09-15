@@ -6,8 +6,9 @@
 [![Architecture](https://img.shields.io/badge/Architecture-Clean%20%2B%20MVI-orange.svg)](#-architecture--layer-separation)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![SonarCloud](https://img.shields.io/badge/SonarCloud-Clean%20Code-success.svg?logo=sonarcloud)](https://sonarcloud.io)
+[![AI Assisted](https://img.shields.io/badge/AI--Assisted-Google%20DeepMind%20Antigravity-blueviolet.svg?logo=google)](#-ai-assisted-engineering--transparency-self-declaration)
 
-A production-grade, offline-first, block-based **Markdown Editor** application for Android built with modern Kotlin, Jetpack Compose, Room persistence, and `commonmark-java`. Designed for high performance, smooth 60/120 FPS scrolling, granular block-level editing, multi-format document conversion, and biometric security.
+A production-grade, offline-first, block-based **Markdown Editor** application for Android built with modern Kotlin, Jetpack Compose, Room persistence, and `commonmark-java`. Designed for high performance, smooth 60/120 FPS scrolling, granular block-level editing, multi-format document conversion, on-device OCR scanning via Google ML Kit, and biometric security.
 
 ---
 
@@ -17,6 +18,16 @@ A production-grade, offline-first, block-based **Markdown Editor** application f
 - **Granular Recomposition:** Decomposes Markdown documents into discrete blocks (`Paragraph`, `Heading`, `CodeBlock`, `Quote`, `ListItem`, `ThematicBreak`), each rendered as an independent Composable item keyed by an immutable `BlockId` in a `LazyColumn`.
 - **Fluid Keyboard Gestures:** Pressing `Enter` cleanly splits a block at the exact cursor position with smart list (`- `, `1. `) and quote (`> `) continuation. Pressing `Backspace` at the start of a block merges it with the preceding block with seamless focus traversal.
 - **Accessory Keyboard Bar:** Docked Markdown formatting toolbar above the soft keyboard (`imePadding()`) for instant syntax insertion without manual symbol typing.
+
+### 🔍 Google ML Kit On-Device Text Recognition (OCR)
+- **On-Device Optical Character Recognition:** Capture or import images and document scans directly into Markdown blocks via **Google ML Kit Text Recognition v2**.
+- **Heuristic AST Structuring:** Automatically analyzes line spacing, capitalization, and numeric/bullet sequences to convert raw bounding boxes into headings, bullet lists, and paragraphs.
+- **Zero Cloud Latency & Privacy:** Completely offline processing with on-device models delivered dynamically by Google Play Services, adding zero APK bloat (~16.5 MB release APK).
+
+### 📊 Interactive Mermaid Diagrams
+- **Live Diagram Preview:** Render ````mermaid fenced code blocks into dynamic vector diagrams (flowcharts, sequence diagrams, state diagrams, class diagrams, Git graphs, and ER diagrams) in Live Preview.
+- **Dual-Mode Inspection:** Seamless one-tap toggle between visual diagram view and raw source code with copy support.
+- **Dynamic Theme Synchronization:** Automatic color palette adaptation for Material 3 Light and Dark/AMOLED modes.
 
 ### 👁️ Live Preview & Synchronized Split-View
 - **Responsive Dual-Pane Mode:** Side-by-side editing and preview on wide screens/tablets; stacked layout on compact mobile devices.
@@ -31,7 +42,7 @@ A production-grade, offline-first, block-based **Markdown Editor** application f
 ### 🔄 Multi-Format Document-to-Markdown Converter
 - **Microsoft Word (`.docx`):** Parses OpenXML ZIP archives into headings, formatted text, lists, and Markdown tables.
 - **Microsoft Excel (`.xlsx`):** Reads shared strings and worksheet cells into clean Markdown tables.
-- **Adobe PDF (`.pdf`):** Extracts text structure with heuristic heading size detection and font style recognition via `pdfbox-android`.
+- **Adobe PDF (`.pdf`):** Extracts text structure with heuristic heading size detection and font style recognition via `pdfbox-android` (strictly pure-text, zero graphics decoding overhead).
 - **Web HTML (`.html`, `.htm`):** Cleans and transforms DOM trees into clean Markdown via JSoup.
 - **Tabular Data (`.csv`, `.tsv`):** Parses delimited files including multiline quoted fields into Markdown tables.
 - **Structured Code (`.json`, `.xml`, `.yaml`):** Imports structured data directly into fenced code blocks with appropriate syntax tags.
@@ -43,22 +54,8 @@ A production-grade, offline-first, block-based **Markdown Editor** application f
 
 ### 🖨️ Export & System Sharing
 - **Export to HTML & PDF:** Generates standalone responsive HTML with print media stylesheets or prints/exports to PDF using Android's native `PrintManager`.
-- **System Intent Handlers:** Accepts shared text or files via `Intent.ACTION_SEND` and opens files via `Intent.ACTION_VIEW` from system file managers.
+- **System Intent Handlers:** Accepts shared text or files via `Intent.ACTION_SEND` and opens files via `Intent.ACTION_VIEW` for markdown, plain text, and PDF files.
 - **Quick Note Home Screen Widget:** Glance-powered widget (`androidx.glance:glance-appwidget:1.1.1`) for 1-tap note creation and access from your home screen.
-
----
-
-## 🚀 Upcoming Features & Roadmap
-
-### 🔍 Google ML Kit Integration (On-Device OCR & Scanning)
-- **On-Device Text Recognition (OCR):** Point your device camera or pick an image to recognize text offline using **Google ML Kit Text Recognition v2** and automatically convert recognized paragraphs and headers into native Markdown blocks.
-- **Document Scanner API:** High-quality document boundary detection, perspective correction, shadow removal, and direct extraction into Markdown.
-- **Zero Cloud Latency:** 100% on-device processing ensuring total privacy and offline functionality.
-
-### 🔮 Additional Planned Milestones
-- **Git Version Control Sync:** Built-in sync with GitHub / GitLab repositories for version-controlled note-taking.
-- **Interactive Mermaid Diagrams:** Live rendering of architecture graphs, sequence diagrams, and flowcharts in the preview pane.
-- **KaTeX / LaTeX Math Support:** Inline `$math$` and block `$$math$$` rendering for scientific notes.
 
 ---
 
@@ -106,6 +103,8 @@ All dependencies are centrally managed via Version Catalog ([`gradle/libs.versio
 | **Jetpack Compose BOM** | `2026.09.00` | Declarative UI framework |
 | **Room** | `2.8.5` | Local persistence and snapshot database |
 | **Dagger Hilt** | `2.60.1` | Dependency injection |
+| **Google ML Kit Text Recognition** | `19.0.1` | On-device OCR scanning into Markdown |
+| **Mermaid.js** | `11.4.1` | Vector diagram rendering in Live Preview |
 | **commonmark-java** | `0.30.0` | Markdown AST parsing and HTML generation |
 | **java-diff-utils** | `4.17` | Myers diff algorithm for bidirectional undo/redo deltas |
 | **pdfbox-android** | `2.0.27.0` | PDF text and structure extraction |
@@ -144,7 +143,7 @@ sdk.dir=/Users/<Username>/Library/Android/sdk
 Run the deterministic build commands via the Gradle wrapper:
 
 ```bash
-# Run unit tests across all 5 modules (98 tests)
+# Run unit tests across all 5 modules (100+ tests)
 .\gradlew testDebugUnitTest :domain:test
 
 # Compile debug APK
@@ -157,6 +156,18 @@ Run the deterministic build commands via the Gradle wrapper:
 
 ---
 
+## 🤖 AI-Assisted Engineering & Transparency Self-Declaration
+
+In compliance with open-source ethical disclosure standards and AI development transparency:
+
+This repository was architected and implemented with the assistance of **Google DeepMind's Antigravity** autonomous AI pair-programming assistant powered by advanced **Google Gemini** reasoning models.
+
+- **Human-Directed Architecture:** System architecture, multi-module boundaries, persistence strategies, and product requirements were designed, directed, and approved by the repository owner.
+- **Verified Code Quality:** All code undergoes deterministic automated verification, including 100% unit test pass rates across all modules, strict compilation checks, ProGuard/R8 minification, and SonarCloud clean-code analysis (zero security vulnerabilities, low cognitive complexity, strict Clean Architecture layer separation).
+- **Open Governance:** Architectural decisions are systematically recorded in [`STATE.md`](./STATE.md) (ADR log).
+
+---
+
 ## 🤝 Contributing
 
 We welcome contributions! Please read our [**Contributing Guide**](./CONTRIBUTING.md) for details on our code style, Clean Architecture standards, SonarCloud quality gates, and the pull request process.
@@ -166,4 +177,4 @@ We welcome contributions! Please read our [**Contributing Guide**](./CONTRIBUTIN
 ## 📄 License & Attributions
 
 - Distributed under the **Apache License 2.0**. See [`LICENSE`](./LICENSE) for more information.
-- Third-party open-source licenses and copyright notices are documented in [`NOTICE`](./NOTICE).
+- Third-party open-source licenses, AI self-declaration, and copyright notices are documented in [`NOTICE`](./NOTICE).

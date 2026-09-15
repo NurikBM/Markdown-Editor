@@ -13,6 +13,7 @@ import com.markdown.editor.domain.usecase.ExportHtmlUseCase
 import com.markdown.editor.domain.usecase.FindInDocumentUseCase
 import com.markdown.editor.domain.usecase.GenerateTableOfContentsUseCase
 import com.markdown.editor.domain.usecase.MergeBlockUseCase
+import com.markdown.editor.domain.usecase.RecognizeTextFromImageUseCase
 import com.markdown.editor.domain.usecase.RedoBlockUseCase
 import com.markdown.editor.domain.usecase.ReplaceInDocumentUseCase
 import com.markdown.editor.domain.usecase.SplitBlockUseCase
@@ -44,7 +45,8 @@ class EditorViewModelFactory(
     private val replaceInDocumentUseCase: ReplaceInDocumentUseCase,
     private val applyFormattingUseCase: ApplyFormattingUseCase,
     private val convertDocumentUseCase: ConvertDocumentUseCase,
-    private val toggleDocumentLockUseCase: ToggleDocumentLockUseCase
+    private val toggleDocumentLockUseCase: ToggleDocumentLockUseCase,
+    private val recognizeTextFromImageUseCase: RecognizeTextFromImageUseCase
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -66,7 +68,8 @@ class EditorViewModelFactory(
                 replaceInDocumentUseCase = replaceInDocumentUseCase,
                 applyFormattingUseCase = applyFormattingUseCase,
                 convertDocumentUseCase = convertDocumentUseCase,
-                toggleDocumentLockUseCase = toggleDocumentLockUseCase
+                toggleDocumentLockUseCase = toggleDocumentLockUseCase,
+                recognizeTextFromImageUseCase = recognizeTextFromImageUseCase
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
@@ -95,7 +98,8 @@ object PresentationModule {
         replaceInDocumentUseCase: ReplaceInDocumentUseCase,
         applyFormattingUseCase: ApplyFormattingUseCase,
         convertDocumentUseCase: ConvertDocumentUseCase,
-        toggleDocumentLockUseCase: ToggleDocumentLockUseCase
+        toggleDocumentLockUseCase: ToggleDocumentLockUseCase,
+        recognizeTextFromImageUseCase: RecognizeTextFromImageUseCase
     ): EditorViewModelFactory = EditorViewModelFactory(
         markdownRepository = markdownRepository,
         snapshotRepository = snapshotRepository,
@@ -112,6 +116,7 @@ object PresentationModule {
         replaceInDocumentUseCase = replaceInDocumentUseCase,
         applyFormattingUseCase = applyFormattingUseCase,
         convertDocumentUseCase = convertDocumentUseCase,
-        toggleDocumentLockUseCase = toggleDocumentLockUseCase
+        toggleDocumentLockUseCase = toggleDocumentLockUseCase,
+        recognizeTextFromImageUseCase = recognizeTextFromImageUseCase
     )
 }

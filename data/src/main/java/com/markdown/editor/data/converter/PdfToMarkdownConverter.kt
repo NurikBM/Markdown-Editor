@@ -1,26 +1,34 @@
 package com.markdown.editor.data.converter
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
+import com.markdown.editor.data.ocr.MlKitDocumentOcrScanner
 import com.markdown.editor.domain.converter.ConvertedDocument
 import com.markdown.editor.domain.converter.DocumentConverter
 import com.markdown.editor.domain.error.DomainError
 import com.markdown.editor.domain.error.asException
+import com.markdown.editor.domain.ocr.DocumentOcrScanner
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import com.tom_roush.pdfbox.text.TextPosition
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.InputStream
 import java.io.OutputStreamWriter
 import java.io.Writer
 
 /**
- * Intelligent PDF to Markdown converter using pdfbox-android.
- * Performs best-effort structural reconstruction by inspecting glyph coordinates,
- * font sizes for headings, font weights for bold/italic, and bullet markers for lists.
+ * Intelligent PDF to Markdown converter using pdfbox-android with on-device OCR fallback.
+ * Performs structural text extraction, and for scanned/image-only PDFs, falls back to
+ * rendering pages via [PdfRenderer] and running [DocumentOcrScanner].
  */
 class PdfToMarkdownConverter(
-    private val context: Context
+    private val context: Context,
+    private val ocrScanner: DocumentOcrScanner? = null
 ) : DocumentConverter {
 
     @Volatile
@@ -44,7 +52,8 @@ class PdfToMarkdownConverter(
     override suspend fun convert(fileName: String, inputStream: InputStream): ConvertedDocument {
         ensureInitialized()
         val title = fileName.substringBeforeLast('.')
-        val document = loadPdfDocument(fileName, inputStream)
+        val pdfBytes = inputStream.readBytes()
+        val document = loadPdfDocument(fileName, ByteArrayInputStream(pdfBytes))
 
         document.use { doc ->
             if (doc.isEncrypted) {
@@ -57,12 +66,22 @@ class PdfToMarkdownConverter(
             }
 
             val finalContent = buildMultiPageMarkdown(doc, numPages)
-            if (finalContent.isEmpty()) {
+            if (finalContent.isBlank()) {
+                val ocrContent = tryOcrPages(pdfBytes, title)
+                if (!ocrContent.isNullOrBlank()) {
+                    return ConvertedDocument(
+                        title = title,
+                        markdownContent = ocrContent,
+                        isBestEffort = true,
+                        warningMessage = "Text recognized from scanned PDF pages via Google ML Kit OCR."
+                    )
+                }
+
                 return ConvertedDocument(
                     title = title,
-                    markdownContent = "# $title\n\n> [!NOTE]\n> This PDF contains scanned images or non-extractable glyphs with no embedded text layer.",
+                    markdownContent = "# $title\n\n> [!NOTE]\n> Pure-text PDF extraction found no embedded text layer in this document. If this is a scanned document or photograph, please use the **Scan Document (OCR with Google ML Kit)** tool to extract text directly from image pages.",
                     isBestEffort = true,
-                    warningMessage = "This PDF appears to be a scanned image without an embedded text layer."
+                    warningMessage = "This PDF has no embedded text layer. Use Scan Document (OCR) for scanned images."
                 )
             }
 
@@ -72,6 +91,66 @@ class PdfToMarkdownConverter(
                 isBestEffort = true,
                 warningMessage = "PDF imported with best-effort layout. Please review headings, lists, and tables."
             )
+        }
+    }
+
+    private suspend fun tryOcrPages(pdfBytes: ByteArray, title: String): String? {
+        val scanner = ocrScanner ?: return null
+        val tempFile = File.createTempFile("pdf_scan_", ".pdf", context.cacheDir)
+        return try {
+            tempFile.writeBytes(pdfBytes)
+            val pfd = ParcelFileDescriptor.open(tempFile, ParcelFileDescriptor.MODE_READ_ONLY) ?: return null
+            pfd.use { descriptor ->
+                PdfRenderer(descriptor).use { renderer ->
+                    val pageCount = renderer.pageCount
+                    if (pageCount == 0) return null
+
+                    val pageContents = mutableListOf<String>()
+                    for (pageIndex in 0 until pageCount) {
+                        val pageText = ocrSinglePage(renderer, pageIndex, scanner, title)
+                        if (pageText.isNotBlank()) {
+                            pageContents.add(pageText)
+                        }
+                    }
+
+                    if (pageContents.isEmpty()) null else pageContents.joinToString("\n\n---\n\n")
+                }
+            }
+        } catch (_: Exception) {
+            null
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    private suspend fun ocrSinglePage(
+        renderer: PdfRenderer,
+        pageIndex: Int,
+        scanner: DocumentOcrScanner,
+        title: String
+    ): String {
+        return try {
+            renderer.openPage(pageIndex).use { page ->
+                val width = (page.width * 2).coerceAtMost(2048)
+                val height = (page.height * 2).coerceAtMost(2048)
+                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+
+                val pageTitle = "$title Page ${pageIndex + 1}"
+                if (scanner is MlKitDocumentOcrScanner) {
+                    val result = scanner.recognizeBitmap(bitmap, pageTitle)
+                    bitmap.recycle()
+                    result.getOrNull()?.markdownContent ?: ""
+                } else {
+                    val baos = ByteArrayOutputStream()
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 85, baos)
+                    bitmap.recycle()
+                    val result = scanner.recognizeText(baos.toByteArray(), pageTitle)
+                    result.getOrNull()?.markdownContent ?: ""
+                }
+            }
+        } catch (_: Exception) {
+            ""
         }
     }
 

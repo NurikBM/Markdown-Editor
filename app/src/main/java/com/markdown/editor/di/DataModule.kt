@@ -101,5 +101,12 @@ object DataModule {
         @ApplicationContext context: Context
     ): com.markdown.editor.domain.converter.DocumentConverter =
         com.markdown.editor.data.converter.CompositeDocumentConverter(context)
+
+    @Provides
+    @Singleton
+    fun provideDocumentOcrScanner(
+        @ApplicationContext context: Context
+    ): com.markdown.editor.domain.ocr.DocumentOcrScanner =
+        com.markdown.editor.data.ocr.MlKitDocumentOcrScanner(context)
 }
 

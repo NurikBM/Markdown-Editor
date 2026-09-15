@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Lock
@@ -62,6 +64,7 @@ fun DocumentDrawerSheet(
     state: EditorUiState,
     onIntent: (EditorIntent) -> Unit,
     onOpenFile: () -> Unit,
+    onScanOcr: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var documentToDelete by remember { mutableStateOf<DocumentMetadata?>(null) }
@@ -118,15 +121,16 @@ fun DocumentDrawerSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Quick Actions: New Note & Open File
+            // Quick Actions: New Note, Open File & Scan OCR
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Button(
                     onClick = { onIntent(EditorIntent.CreateNewDocument) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
@@ -135,24 +139,58 @@ fun DocumentDrawerSheet(
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "New Note",
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "New", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "New",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
 
                 OutlinedButton(
                     onClick = onOpenFile,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.FolderOpen,
                         contentDescription = "Open File",
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "Open", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "Open",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onScanOcr,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DocumentScanner,
+                        contentDescription = "Scan Document with OCR",
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "OCR",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
             }
         }

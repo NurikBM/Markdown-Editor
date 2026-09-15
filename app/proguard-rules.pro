@@ -63,3 +63,18 @@
 -keep class org.jsoup.** { *; }
 -dontwarn org.jsoup.**
 
+# 11. Google ML Kit Text Recognition
+-keep class com.google.mlkit.vision.** { *; }
+-keep class com.google.android.gms.vision.** { *; }
+-dontwarn com.google.mlkit.**
+-dontwarn com.google.android.gms.**
+
+# 12. WebView & JavaScript Interface (Mermaid diagrams)
+-keepattributes JavascriptInterface
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keep class android.webkit.** { *; }
+-dontwarn android.webkit.**
+
+

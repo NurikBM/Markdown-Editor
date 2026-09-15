@@ -105,5 +105,12 @@ object DomainModule {
         repository: com.markdown.editor.domain.repository.MarkdownRepository
     ): com.markdown.editor.domain.usecase.ToggleDocumentLockUseCase =
         com.markdown.editor.domain.usecase.ToggleDocumentLockUseCase(repository)
+
+    @Provides
+    @Singleton
+    fun provideRecognizeTextFromImageUseCase(
+        scanner: com.markdown.editor.domain.ocr.DocumentOcrScanner
+    ): com.markdown.editor.domain.usecase.RecognizeTextFromImageUseCase =
+        com.markdown.editor.domain.usecase.RecognizeTextFromImageUseCase(scanner)
 }
 

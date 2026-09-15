@@ -905,4 +905,90 @@ class EditorViewModelTest {
             assertTrue(effect is EditorEffect.LaunchBiometricPrompt)
         }
     }
+
+    @Test
+    fun `ScanImageWithOcr when use case is null emits ShowError`() = runTest(testDispatcher) {
+        viewModel.uiEffect.test {
+            viewModel.processIntent(EditorIntent.ScanImageWithOcr(byteArrayOf(1, 2, 3), "scan.png"))
+            advanceUntilIdle()
+
+            val effect = awaitItem()
+            assertTrue(effect is EditorEffect.ShowError)
+            assertTrue((effect as EditorEffect.ShowError).message.contains("OCR scanner is not available"))
+        }
+    }
+
+    @Test
+    fun `ScanImageWithOcr with valid use case parses markdown and updates blocks`() = runTest(testDispatcher) {
+        val ocrScanner: com.markdown.editor.domain.ocr.DocumentOcrScanner = mockk()
+        coEvery { ocrScanner.recognizeText(any(), any()) } returns Result.success(
+            com.markdown.editor.domain.ocr.OcrResult(
+                markdownContent = "# Scanned Title\n\nRecognized text body",
+                title = "Scanned Note"
+            )
+        )
+        val ocrUseCase = com.markdown.editor.domain.usecase.RecognizeTextFromImageUseCase(ocrScanner)
+
+        val vmWithOcr = EditorViewModel(
+            markdownRepository = markdownRepository,
+            snapshotRepository = snapshotRepository,
+            splitBlockUseCase = splitBlockUseCase,
+            mergeBlockUseCase = mergeBlockUseCase,
+            undoBlockUseCase = undoBlockUseCase,
+            redoBlockUseCase = redoBlockUseCase,
+            diffCalculator = diffCalculator,
+            parser = parser,
+            dispatcherProvider = dispatcherProvider,
+            exportHtmlUseCase = exportHtmlUseCase,
+            toggleDocumentLockUseCase = toggleDocumentLockUseCase,
+            recognizeTextFromImageUseCase = ocrUseCase
+        )
+
+        vmWithOcr.uiEffect.test {
+            vmWithOcr.processIntent(EditorIntent.ScanImageWithOcr(byteArrayOf(1, 2, 3), "test_doc.png"))
+            advanceUntilIdle()
+
+            val effect = awaitItem()
+            assertTrue(effect is EditorEffect.ShowToast)
+            assertTrue((effect as EditorEffect.ShowToast).message.contains("Google ML Kit"))
+
+            val state = vmWithOcr.uiState.value
+            assertEquals(2, state.blocks.size)
+            assertEquals("# Scanned Title", state.blocks[0].rawContent)
+            assertEquals("Recognized text body", state.blocks[1].rawContent)
+        }
+    }
+
+    @Test
+    fun `ScanImageWithOcr when OCR fails emits ShowError`() = runTest(testDispatcher) {
+        val ocrScanner: com.markdown.editor.domain.ocr.DocumentOcrScanner = mockk()
+        coEvery { ocrScanner.recognizeText(any(), any()) } returns Result.failure(
+            IllegalStateException("Google Play Services model not ready")
+        )
+        val ocrUseCase = com.markdown.editor.domain.usecase.RecognizeTextFromImageUseCase(ocrScanner)
+
+        val vmWithOcr = EditorViewModel(
+            markdownRepository = markdownRepository,
+            snapshotRepository = snapshotRepository,
+            splitBlockUseCase = splitBlockUseCase,
+            mergeBlockUseCase = mergeBlockUseCase,
+            undoBlockUseCase = undoBlockUseCase,
+            redoBlockUseCase = redoBlockUseCase,
+            diffCalculator = diffCalculator,
+            parser = parser,
+            dispatcherProvider = dispatcherProvider,
+            exportHtmlUseCase = exportHtmlUseCase,
+            toggleDocumentLockUseCase = toggleDocumentLockUseCase,
+            recognizeTextFromImageUseCase = ocrUseCase
+        )
+
+        vmWithOcr.uiEffect.test {
+            vmWithOcr.processIntent(EditorIntent.ScanImageWithOcr(byteArrayOf(1, 2, 3), "test_doc.png"))
+            advanceUntilIdle()
+
+            val effect = awaitItem()
+            assertTrue(effect is EditorEffect.ShowError)
+            assertTrue((effect as EditorEffect.ShowError).message.contains("OCR failed"))
+        }
+    }
 }

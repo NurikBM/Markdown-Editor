@@ -124,8 +124,24 @@ fun EditorScreen(
         }
     }
 
+    val ocrPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            handleOcrPicked(context, uri, onIntent)
+        }
+    }
+
     SyncDrawerState(state.isDrawerOpen, drawerState, onIntent)
-    HandleEditorEffects(effects, snackbarHostState, editorListState, previewListState, context, onIntent)
+    HandleEditorEffects(
+        effects = effects,
+        snackbarHostState = snackbarHostState,
+        editorListState = editorListState,
+        previewListState = previewListState,
+        context = context,
+        onIntent = onIntent,
+        onScanOcr = { ocrPickerLauncher.launch("image/*") }
+    )
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -144,6 +160,10 @@ fun EditorScreen(
                 onOpenFile = {
                     onIntent(EditorIntent.ToggleDrawer(false))
                     filePickerLauncher.launch(IMPORT_MIME_TYPES)
+                },
+                onScanOcr = {
+                    onIntent(EditorIntent.ToggleDrawer(false))
+                    ocrPickerLauncher.launch("image/*")
                 }
             )
         },
@@ -155,6 +175,7 @@ fun EditorScreen(
             snackbarHostState = snackbarHostState,
             editorListState = editorListState,
             previewListState = previewListState,
+            onScanOcr = { ocrPickerLauncher.launch("image/*") },
             modifier = modifier
         )
     }
@@ -196,7 +217,8 @@ private fun HandleEditorEffects(
     editorListState: LazyListState,
     previewListState: LazyListState,
     context: Context,
-    onIntent: (EditorIntent) -> Unit
+    onIntent: (EditorIntent) -> Unit,
+    onScanOcr: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     LaunchedEffect(effects) {
@@ -247,6 +269,7 @@ private fun HandleEditorEffects(
                         )
                     }
                 }
+                EditorEffect.LaunchOcrImagePicker -> onScanOcr()
             }
         }
     }
@@ -259,13 +282,14 @@ private fun EditorScaffold(
     snackbarHostState: SnackbarHostState,
     editorListState: LazyListState,
     previewListState: LazyListState,
+    onScanOcr: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isLocked = state.isDocumentLocked && !state.isUnlockedForSession
 
     Scaffold(
         topBar = {
-            EditorTopBar(state = state, onIntent = onIntent)
+            EditorTopBar(state = state, onIntent = onIntent, onScanOcr = onScanOcr)
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         modifier = modifier.imePadding()
@@ -543,6 +567,30 @@ private fun handleFilePicked(
             ""
         }
         onIntent(EditorIntent.OpenExternalDocument(fileName = fileName, content = content, rawBytes = bytes))
+    } catch (_: Exception) {
+        // Ignored
+    }
+}
+
+private fun handleOcrPicked(
+    context: Context,
+    uri: Uri,
+    onIntent: (EditorIntent) -> Unit
+) {
+    try {
+        var fileName = "Scanned Note"
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameIndex != -1 && cursor.moveToFirst()) {
+                fileName = cursor.getString(nameIndex)
+            }
+        }
+        val bytes = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            inputStream.readBytes()
+        } ?: ByteArray(0)
+        if (bytes.isNotEmpty()) {
+            onIntent(EditorIntent.ScanImageWithOcr(imageBytes = bytes, fileName = fileName))
+        }
     } catch (_: Exception) {
         // Ignored
     }

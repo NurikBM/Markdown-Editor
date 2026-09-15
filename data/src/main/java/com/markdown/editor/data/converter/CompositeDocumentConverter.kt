@@ -16,7 +16,10 @@ class CompositeDocumentConverter(
     private val xlsxConverter: XlsxToMarkdownConverter = XlsxToMarkdownConverter(),
     private val csvConverter: CsvToMarkdownConverter = CsvToMarkdownConverter(),
     private val htmlConverter: HtmlToMarkdownConverter = HtmlToMarkdownConverter(),
-    private val pdfConverter: PdfToMarkdownConverter = PdfToMarkdownConverter(context)
+    private val pdfConverter: PdfToMarkdownConverter = PdfToMarkdownConverter(
+        context,
+        com.markdown.editor.data.ocr.MlKitDocumentOcrScanner(context)
+    )
 ) : DocumentConverter {
 
     private val supportedExtensions = setOf(

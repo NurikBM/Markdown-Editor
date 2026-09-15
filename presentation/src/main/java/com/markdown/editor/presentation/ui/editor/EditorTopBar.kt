@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
@@ -71,7 +72,8 @@ import com.markdown.editor.presentation.theme.AppTheme
 fun EditorTopBar(
     state: EditorUiState,
     onIntent: (EditorIntent) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onScanOcr: () -> Unit = {}
 ) {
     val configuration = LocalConfiguration.current
     val isCompact = configuration.screenWidthDp < 600
@@ -108,7 +110,7 @@ fun EditorTopBar(
             )
 
             if (!isCompact) {
-                EditorDesktopActions(state = state, onIntent = onIntent)
+                EditorDesktopActions(state = state, onIntent = onIntent, onScanOcr = onScanOcr)
             }
 
             Box {
@@ -125,7 +127,8 @@ fun EditorTopBar(
                     onDismiss = { showMenu = false },
                     isCompact = isCompact,
                     state = state,
-                    onIntent = onIntent
+                    onIntent = onIntent,
+                    onScanOcr = onScanOcr
                 )
             }
         },
@@ -213,8 +216,17 @@ private fun EditorModeSwitcher(
 @Composable
 private fun EditorDesktopActions(
     state: EditorUiState,
-    onIntent: (EditorIntent) -> Unit
+    onIntent: (EditorIntent) -> Unit,
+    onScanOcr: () -> Unit
 ) {
+    IconButton(onClick = onScanOcr) {
+        Icon(
+            imageVector = Icons.Default.DocumentScanner,
+            contentDescription = "Scan Document (OCR)",
+            tint = MaterialTheme.colorScheme.onSurface
+        )
+    }
+
     IconButton(onClick = { onIntent(EditorIntent.ToggleTableOfContents()) }) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.Toc,
@@ -284,7 +296,8 @@ private fun EditorOverflowMenu(
     onDismiss: () -> Unit,
     isCompact: Boolean,
     state: EditorUiState,
-    onIntent: (EditorIntent) -> Unit
+    onIntent: (EditorIntent) -> Unit,
+    onScanOcr: () -> Unit
 ) {
     DropdownMenu(
         expanded = showMenu,
@@ -294,6 +307,21 @@ private fun EditorOverflowMenu(
             CompactActionMenuItems(state = state, onIntent = onIntent, onDismiss = onDismiss)
             HorizontalDivider()
         }
+
+        DropdownMenuItem(
+            text = { Text("Scan Document (OCR)") },
+            onClick = {
+                onDismiss()
+                onScanOcr()
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.DocumentScanner,
+                    contentDescription = "Scan Document with OCR"
+                )
+            }
+        )
+        HorizontalDivider()
 
         LockActionMenuItem(
             isLocked = state.isDocumentLocked,

@@ -23,6 +23,7 @@ import com.markdown.editor.domain.usecase.FindInDocumentUseCase
 import com.markdown.editor.domain.usecase.GenerateTableOfContentsUseCase
 import com.markdown.editor.domain.usecase.MergeBlockUseCase
 import com.markdown.editor.domain.usecase.MergeResult
+import com.markdown.editor.domain.usecase.RecognizeTextFromImageUseCase
 import com.markdown.editor.domain.usecase.RedoBlockUseCase
 import com.markdown.editor.domain.usecase.ReplaceInDocumentUseCase
 import com.markdown.editor.domain.usecase.SplitBlockUseCase
@@ -40,6 +41,7 @@ import kotlinx.coroutines.withContext
  * Production MVI ViewModel managing block-based document state, split/merge keystrokes,
  * deterministic undo/redo history, in-editor navigation, search, and quick accessory formatting.
  */
+@Suppress("kotlin:S107", "LongParameterList")
 class EditorViewModel(
     private val markdownRepository: MarkdownRepository,
     private val snapshotRepository: SnapshotRepository,
@@ -56,7 +58,8 @@ class EditorViewModel(
     private val replaceInDocumentUseCase: ReplaceInDocumentUseCase = ReplaceInDocumentUseCase(parser),
     private val applyFormattingUseCase: ApplyFormattingUseCase = ApplyFormattingUseCase(),
     private val convertDocumentUseCase: ConvertDocumentUseCase? = null,
-    private val toggleDocumentLockUseCase: ToggleDocumentLockUseCase? = null
+    private val toggleDocumentLockUseCase: ToggleDocumentLockUseCase? = null,
+    private val recognizeTextFromImageUseCase: RecognizeTextFromImageUseCase? = null
 ) : MviViewModel<EditorUiState, EditorIntent, EditorEffect>(EditorUiState()) {
 
     private val undoStack = ArrayDeque<DocumentSnapshot>()
@@ -114,6 +117,7 @@ class EditorViewModel(
             EditorIntent.Undo -> performUndo()
             EditorIntent.Redo -> performRedo()
             EditorIntent.SaveExplicitly -> saveExplicitly()
+            is EditorIntent.ScanImageWithOcr -> scanImageWithOcr(intent.imageBytes, intent.fileName)
         }
     }
 
@@ -1041,6 +1045,76 @@ class EditorViewModel(
     private fun requestBiometricUnlock() {
         if (uiState.value.isDocumentLocked && !uiState.value.isUnlockedForSession) {
             sendEffect(EditorEffect.LaunchBiometricPrompt("Unlock ${uiState.value.title}"))
+        }
+    }
+
+    private fun scanImageWithOcr(imageBytes: ByteArray, fileName: String) {
+        val ocrUseCase = recognizeTextFromImageUseCase
+        if (ocrUseCase == null) {
+            sendEffect(EditorEffect.ShowError("OCR scanner is not available on this device"))
+            return
+        }
+
+        viewModelScope.launch {
+            typingJob?.cancel()
+            updateState { copy(isLoading = true) }
+
+            val ocrResult = withContext(dispatcherProvider.io) {
+                ocrUseCase(imageBytes, fileName.substringBeforeLast('.'))
+            }
+
+            ocrResult.fold(
+                onSuccess = { result ->
+                    val currentState = uiState.value
+                    val recognizedDoc = withContext(dispatcherProvider.diffAndParsing) {
+                        parser.parseDocument(result.markdownContent, currentState.documentId, currentState.title)
+                    }
+
+                    if (recognizedDoc.blocks.isEmpty()) {
+                        updateState { copy(isLoading = false) }
+                        sendEffect(EditorEffect.ShowError("No text blocks detected in the scanned image"))
+                        return@launch
+                    }
+
+                    val mergedBlocks = currentState.blocks.toMutableList()
+                    if (mergedBlocks.size == 1 && mergedBlocks.first().rawContent.isBlank()) {
+                        mergedBlocks.clear()
+                    }
+                    mergedBlocks.addAll(recognizedDoc.blocks)
+
+                    val updatedDoc = MarkdownDocument(
+                        id = currentState.documentId,
+                        title = currentState.title.ifBlank { result.title },
+                        blocks = mergedBlocks,
+                        isLocked = currentState.isDocumentLocked
+                    )
+
+                    withContext(dispatcherProvider.io) {
+                        markdownRepository.saveDocument(updatedDoc)
+                    }
+
+                    val toc = withContext(dispatcherProvider.diffAndParsing) {
+                        generateTableOfContentsUseCase(mergedBlocks)
+                    }
+
+                    updateState {
+                        copy(
+                            title = updatedDoc.title,
+                            blocks = mergedBlocks,
+                            tableOfContents = toc,
+                            isLoading = false,
+                            focusedBlockId = recognizedDoc.blocks.firstOrNull()?.id,
+                            cursorPosition = 0
+                        )
+                    }
+
+                    sendEffect(EditorEffect.ShowToast("Text recognized with Google ML Kit (${recognizedDoc.blocks.size} blocks added)"))
+                },
+                onFailure = { error ->
+                    updateState { copy(isLoading = false) }
+                    sendEffect(EditorEffect.ShowError("OCR failed: ${error.message ?: "Could not recognize text"}"))
+                }
+            )
         }
     }
 }

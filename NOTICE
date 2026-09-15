@@ -58,8 +58,30 @@ components:
    - License: Apache License, Version 2.0
    - Homepage: https://github.com/cashapp/turbine
 
-9. Google ML Kit (Upcoming Planned Integration)
-   - Description: On-device machine learning SDKs for text recognition (OCR) and document scanning.
+9. Google Play Services & ML Kit Text Recognition
+   - Description: On-device machine learning SDK for text recognition (OCR) with zero cloud latency.
    - Copyright: Copyright 2020-2026 Google LLC.
-   - License: Apache License, Version 2.0 / Google APIs Terms of Service
-   - Homepage: https://developers.google.com/ml-kit
+   - License: Apache License, Version 2.0 / Google Play Services Terms of Service
+   - Homepage: https://developers.google.com/ml-kit/vision/text-recognition/v2/android
+
+10. Mermaid.js
+    - Description: JavaScript based diagramming and charting tool rendered via local WebView.
+    - Copyright: Copyright (c) 2014-2024 Knut Sveidqvist and contributors.
+    - License: MIT License
+    - Homepage: https://mermaid.js.org/
+
+========================================================================
+AI-Assisted Engineering Transparency Self-Declaration
+========================================================================
+
+In compliance with open-source ethical disclosure best practices:
+
+Portions of this codebase, unit test suites, and documentation were
+architected and authored with the assistance of Google DeepMind's Antigravity
+autonomous AI coding assistant powered by Google Gemini advanced models.
+
+All generated code, refactorings, architectural decisions, and security
+configurations have been reviewed, verified, hardened against SonarCloud
+clean code standards, and validated through deterministic unit test suites
+and compilation pipelines by the project owner and maintainers.
+

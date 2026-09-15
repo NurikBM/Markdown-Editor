@@ -92,6 +92,7 @@ sealed interface EditorIntent : UiIntent {
     data object UnlockDocumentSession : EditorIntent
     data object LockDocumentSession : EditorIntent
     data object RequestBiometricUnlock : EditorIntent
+    data class ScanImageWithOcr(val imageBytes: ByteArray, val fileName: String = "Scanned Note") : EditorIntent
 }
 
 /**
@@ -105,5 +106,6 @@ sealed interface EditorEffect : UiEffect {
     data class PrintHtml(val jobName: String, val htmlContent: String) : EditorEffect
     data class ShareContent(val title: String, val content: String, val mimeType: String) : EditorEffect
     data class LaunchBiometricPrompt(val title: String) : EditorEffect
+    data object LaunchOcrImagePicker : EditorEffect
 }
 

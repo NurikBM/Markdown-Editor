@@ -87,13 +87,20 @@ fun MarkdownPreviewBlockItem(
             )
         }
         is BlockType.CodeBlock -> {
-            PreviewCodeBlock(
-                code = block.rawContent,
-                language = type.language,
-                searchQuery = searchQuery,
-                isCaseSensitive = isCaseSensitive,
-                modifier = modifier
-            )
+            if (type.language?.trim()?.equals("mermaid", ignoreCase = true) == true) {
+                MermaidDiagramBlock(
+                    code = block.plainText.ifBlank { block.rawContent },
+                    modifier = modifier
+                )
+            } else {
+                PreviewCodeBlock(
+                    code = block.rawContent,
+                    language = type.language,
+                    searchQuery = searchQuery,
+                    isCaseSensitive = isCaseSensitive,
+                    modifier = modifier
+                )
+            }
         }
         is BlockType.ListItem -> {
             PreviewListItem(

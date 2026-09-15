@@ -41,6 +41,7 @@ dependencies {
     implementation(libs.java.diff.utils)
     implementation(libs.pdfbox.android)
     implementation(libs.jsoup)
+    implementation(libs.play.services.mlkit.text.recognition)
 
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)
