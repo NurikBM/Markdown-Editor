@@ -2,8 +2,8 @@
 
 ## Active State
 - **Current Phase:** Phase 6 — Extended Product Polish
-- **Current Milestone:** Milestone 6.4 — Biometric Security & Performance Optimization
-- **Active Subtask:** Step 1 Verified (Biometrics & Startup Lag Resolved). Ready for Step 2 (Open Source Governance).
+- **Current Milestone:** Milestone 6.5 — Open Source Repository Governance & Production Documentation
+- **Active Subtask:** Repository Governance Verified (LICENSE, NOTICE, CONTRIBUTING, CHANGELOG, README, Security Audit)
 - **Status:** VERIFIED
 
 ## Completed Milestones
@@ -35,9 +35,11 @@
 - [x] **Milestone 6.3+**: Implemented multi-format document-to-Markdown conversion engine in `:domain` and `:data` supporting Word documents (`.docx` OpenXML ZIP + DOM with heading, bold/italic, lists, and table extraction), Excel spreadsheets (`.xlsx` OpenXML shared strings + sheet XML to Markdown tables), PDF documents (`.pdf` via `pdfbox-android` with font size heading heuristics, font style bold/italic recognition, bullet lists, page dividers, and best-effort toast notice), HTML documents (`.html`/`.htm` via JSoup DOM), Tabular data (`.csv`/`.tsv` with quoted multiline field parsing), and structured code/data (`.json`, `.xml`, `.yaml`, `.yml` into fenced code blocks). Preserved universal binary/image/audio/archive filter. Full unit test suite and standalone APK assembly verified.
 - [x] **SonarCloud Hardening**: Completely resolved all 34 issues identified by SonarCloud across all 5 modules. Remediated security vulnerabilities (`xml:S5332`, `xml:S6358`, `xml:S5322` in `AndroidManifest.xml`), eliminated high cognitive complexity (`kotlin:S3776`) via modular decomposition in converters, parsers, and UI components, simplified long parameter lists (`kotlin:S107`) using dedicated state/action bundles, converted single-method interfaces to functional interfaces (`kotlin:S6517`), removed redundant branches and unused parameters (`kotlin:S1871`, `kotlin:S1172`), and fixed suspend conversion test fixtures. 100% unit test pass rate and clean APK build verified.
 - [x] **Milestone 6.4**: Implemented Biometric Document Protection (`androidx.biometric:biometric-ktx`) and Production Release Hardening (ProGuard / R8 full-mode optimization, code minification, and resource shrinking). Added `isLocked` flag to `DocumentMetadata`, Room database migration `MIGRATION_1_2` (`ALTER TABLE documents ADD COLUMN isLocked INTEGER NOT NULL DEFAULT 0`), `ToggleDocumentLockUseCase`, `BiometricSecurityHelper` supporting `BIOMETRIC_STRONG or DEVICE_CREDENTIAL`, UI lock toggle in `EditorTopBar`, lock indicators in `DocumentDrawerSheet`, `LockedDocumentView` with biometric unlock prompt, and background session relock on `Lifecycle.Event.ON_STOP`. Configured comprehensive ProGuard keep rules for Room, Hilt, Compose, Glance, PDFBox, Jsoup, DiffUtils, Commonmark, Biometric, and Coroutines. Verified full unit test suite (98/98 tests passing) and assembled optimized production release APK `MarkdownEditor-v1.0-release.apk` (16.5 MB, reduced by >50% via R8 minification and resource shrinking). (Commit: `a02dea6`).
+- [x] **Milestone 6.4 (Bugfix & UX Polish)**: Fixed Room `saveDocument` regression discarding `isLocked` flag; enhanced UI with immediate "Lock Note Now" session lock in top bar and menu; eliminated cold start stutter by clearing initial auto-focus (`focusedBlockId = null`) to prevent IME keyboard layout collisions during initial Compose composition. (Commit: `58d61bc`).
+- [x] **Milestone 6.5**: Established comprehensive open-source repository governance and documentation. Added official Apache License 2.0 (`LICENSE`), third-party software attributions (`NOTICE`), Clean Architecture and SonarCloud contribution guidelines (`CONTRIBUTING.md`), detailed version history from v0.1.0 to v1.0.0 (`CHANGELOG.md`), updated representative `README.md` with architecture graphs, module breakdown, features, and official Google ML Kit OCR/scanning roadmap announcement. Completed security audit confirming zero leaked secrets or credentials. (Commit: `388e5f2`).
 
 ## Immediate Next Steps
-1. **Production Deployment Ready**: All Phase 1 through Phase 6 milestones fully completed, tested, and pushed to main. Release APK generated.
+1. **Production Deployment Ready**: All Phase 1 through Phase 6 milestones and open source governance fully completed and verified.
 
 ## Key Architecture Decisions (ADR Log)
 | Date       | Decision                                      | Context & Rationale                                                                                                                                                                                | Status   |
@@ -76,6 +78,7 @@
 | 2026-09-12 | Comprehensive SonarCloud Hardening            | Refactored high-cognitive-complexity methods across converters, parsers, and UI; bundled parameter lists into state/action value classes; enforced secure manifest configurations (disabled cleartext traffic and application backup); ensured 100% compliance with Sonar rules. | ACCEPTED |
 | 2026-09-12 | Biometric Security & R8 Release Hardening     | Implemented document locking via `androidx.biometric:biometric-ktx` supporting `BIOMETRIC_STRONG` and device credentials with Room migration `MIGRATION_1_2`. Configured R8 minification and resource shrinking in `app/build.gradle.kts` and created exhaustive `app/proguard-rules.pro` keeping Room, Hilt, Compose, Glance, PDFBox, Jsoup, DiffUtils, and Commonmark. Enabled release APK output at 16.5 MB with zero runtime crashes. | ACCEPTED |
 | 2026-09-14 | Biometric Persistence Fix & Cold Start Optimization | Fixed Room `saveDocument` regression discarding `isLocked` flag; enhanced UI with immediate "Lock Note Now" session lock in top bar and menu; eliminated cold start stutter by clearing initial auto-focus (`focusedBlockId = null`) to prevent IME keyboard layout collisions during initial Compose composition. | ACCEPTED |
+| 2026-09-15 | Open Source Governance & Apache 2.0 Baseline | Adopted Apache 2.0 license for permissive distribution and patent protection; documented third-party software attributions in `NOTICE`; established Clean Architecture & SonarCloud standards in `CONTRIBUTING.md`; documented feature evolution in `CHANGELOG.md`; and announced future Google ML Kit On-Device OCR roadmap in `README.md`. | ACCEPTED |
 
 ## Technical Baseline & Chosen Versions
 - **Kotlin:** `2.4.20`
@@ -98,5 +101,5 @@
 - **SDK Constraints:** `minSdk = 26`, `targetSdk = 37`, `compileSdk = 37`
 
 ## Session Handoff Block
-- **Last Verified State:** Step 1 completed, verified, and pushed to main (Commit: `58d61bc`). Biometric persistence fix, instant session lock UI ("Lock Note Now"), cold startup lag elimination (`focusedBlockId = null`), and updated unit tests (98/98 passing). Production release APK generated at `app/build/outputs/apk/release/MarkdownEditor-v1.0-release.apk` (16.5 MB).
-- **Exact Resumption Command/Action:** Execute Step 2: Open Source Repository Governance (Apache 2.0 LICENSE, NOTICE, CONTRIBUTING.md, CHANGELOG.md, README.md with ML Kit announcement, and security check).
+- **Last Verified State:** Milestone 6.5 fully completed, verified, and pushed to main (Commit: `388e5f2`). Step 1 (technical fixes) and Step 2 (open source governance & documentation) complete. Full unit test suite (98/98 tests) passing, optimized release APK generated (16.5 MB), and comprehensive repository documentation (`LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `CHANGELOG.md`, `README.md`) established.
+- **Exact Resumption Command/Action:** Ready for next feature development or production release tag.

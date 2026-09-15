@@ -1,57 +1,169 @@
-# MyApplication
+# Markdown Editor for Android
 
-A clean, modern Android application structured for deterministic builds, rapid onboarding, and token-efficient AI-assisted development.
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.20-blue.svg?logo=kotlin)](https://kotlinlang.org)
+[![Android](https://img.shields.io/badge/Android-SDK%2026%E2%80%9337-brightgreen.svg?logo=android)](https://developer.android.com)
+[![Compose](https://img.shields.io/badge/Jetpack%20Compose-BOM%202026.09.00-purple.svg?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
+[![Architecture](https://img.shields.io/badge/Architecture-Clean%20%2B%20MVI-orange.svg)](#-architecture--layer-separation)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
+[![SonarCloud](https://img.shields.io/badge/SonarCloud-Clean%20Code-success.svg?logo=sonarcloud)](https://sonarcloud.io)
+
+A production-grade, offline-first, block-based **Markdown Editor** application for Android built with modern Kotlin, Jetpack Compose, Room persistence, and `commonmark-java`. Designed for high performance, smooth 60/120 FPS scrolling, granular block-level editing, multi-format document conversion, and biometric security.
 
 ---
 
-## ⚡ Quick Start (< 3 Minutes)
+## ✨ Key Features
+
+### 🧱 Block-Based Editing Engine
+- **Granular Recomposition:** Decomposes Markdown documents into discrete blocks (`Paragraph`, `Heading`, `CodeBlock`, `Quote`, `ListItem`, `ThematicBreak`), each rendered as an independent Composable item keyed by an immutable `BlockId` in a `LazyColumn`.
+- **Fluid Keyboard Gestures:** Pressing `Enter` cleanly splits a block at the exact cursor position with smart list (`- `, `1. `) and quote (`> `) continuation. Pressing `Backspace` at the start of a block merges it with the preceding block with seamless focus traversal.
+- **Accessory Keyboard Bar:** Docked Markdown formatting toolbar above the soft keyboard (`imePadding()`) for instant syntax insertion without manual symbol typing.
+
+### 👁️ Live Preview & Synchronized Split-View
+- **Responsive Dual-Pane Mode:** Side-by-side editing and preview on wide screens/tablets; stacked layout on compact mobile devices.
+- **Bidirectional Scroll Synchronization:** Loop-free scroll coordinator (`rememberSynchronizedScroll`) keeping editor and preview viewports perfectly aligned.
+- **Rich Markdown Formatting:** Inline rendering for bold, italic, strikethrough, inline code, links, blockquotes, and thematic breaks.
+
+### 🔐 Biometric Document Protection
+- **Hardware-Grade Security:** Protect sensitive notes using `androidx.biometric:biometric-ktx` supporting `BIOMETRIC_STRONG` (fingerprint, face unlock) and system device credentials (PIN, pattern, password).
+- **Instant Session Locking:** Tap "Lock Note Now" in the top bar to immediately secure the active session into `LockedDocumentView`.
+- **Automatic Background Relock:** Secured documents automatically relock whenever the application is sent to the background (`Lifecycle.Event.ON_STOP`).
+
+### 🔄 Multi-Format Document-to-Markdown Converter
+- **Microsoft Word (`.docx`):** Parses OpenXML ZIP archives into headings, formatted text, lists, and Markdown tables.
+- **Microsoft Excel (`.xlsx`):** Reads shared strings and worksheet cells into clean Markdown tables.
+- **Adobe PDF (`.pdf`):** Extracts text structure with heuristic heading size detection and font style recognition via `pdfbox-android`.
+- **Web HTML (`.html`, `.htm`):** Cleans and transforms DOM trees into clean Markdown via JSoup.
+- **Tabular Data (`.csv`, `.tsv`):** Parses delimited files including multiline quoted fields into Markdown tables.
+- **Structured Code (`.json`, `.xml`, `.yaml`):** Imports structured data directly into fenced code blocks with appropriate syntax tags.
+- **Universal Binary Protection:** Null-byte buffer sniffing (`content.take(4096).contains('\u0000')`) and media extension blacklisting prevent corrupt binary imports.
+
+### ⏪ Myers Diff Snapshot Engine
+- **Deterministic Undo/Redo:** Forward and reverse deltas computed via `java-diff-utils` and persisted in Room across process deaths and configuration changes.
+- **Debounced Auto-Save:** Background persistence offloaded to `Dispatchers.IO` and `limitedParallelism(2)` dispatcher with 300 ms typing debounce.
+
+### 🖨️ Export & System Sharing
+- **Export to HTML & PDF:** Generates standalone responsive HTML with print media stylesheets or prints/exports to PDF using Android's native `PrintManager`.
+- **System Intent Handlers:** Accepts shared text or files via `Intent.ACTION_SEND` and opens files via `Intent.ACTION_VIEW` from system file managers.
+- **Quick Note Home Screen Widget:** Glance-powered widget (`androidx.glance:glance-appwidget:1.1.1`) for 1-tap note creation and access from your home screen.
+
+---
+
+## 🚀 Upcoming Features & Roadmap
+
+### 🔍 Google ML Kit Integration (On-Device OCR & Scanning)
+- **On-Device Text Recognition (OCR):** Point your device camera or pick an image to recognize text offline using **Google ML Kit Text Recognition v2** and automatically convert recognized paragraphs and headers into native Markdown blocks.
+- **Document Scanner API:** High-quality document boundary detection, perspective correction, shadow removal, and direct extraction into Markdown.
+- **Zero Cloud Latency:** 100% on-device processing ensuring total privacy and offline functionality.
+
+### 🔮 Additional Planned Milestones
+- **Git Version Control Sync:** Built-in sync with GitHub / GitLab repositories for version-controlled note-taking.
+- **Interactive Mermaid Diagrams:** Live rendering of architecture graphs, sequence diagrams, and flowcharts in the preview pane.
+- **KaTeX / LaTeX Math Support:** Inline `$math$` and block `$$math$$` rendering for scientific notes.
+
+---
+
+## 🏛️ Architecture & Layer Separation
+
+Markdown Editor strictly adheres to **Clean Architecture** and **Unidirectional Data Flow (UDF / MVI)** across five Gradle modules:
+
+```mermaid
+graph TD
+    app[":app (Android Application)"] --> presentation[":presentation (Android Library)"]
+    app --> data[":data (Android Library)"]
+    app --> domain[":domain (Pure Kotlin/JVM)"]
+    app --> core[":core (Android Library)"]
+
+    presentation --> domain
+    presentation --> core
+
+    data --> domain
+    data --> core
+
+    domain -.->|Zero Android Platform Dependencies| none["(Pure Kotlin/JVM)"]
+```
+
+### Module Breakdown
+
+| Module | Type | Responsibilities |
+| :--- | :--- | :--- |
+| **`:domain`** | Pure Kotlin/JVM | Entities (`MarkdownDocument`, `MarkdownBlock`, `BlockId`), incremental AST parser contracts, repository interfaces, use cases, typed error sealed hierarchies (`DomainError`). Zero Android dependencies. |
+| **`:core`** | Android Library | Concurrency abstractions (`DispatcherProvider`), unified logging (`Logger`), shared utilities. |
+| **`:data`** | Android Library | Room database, DAOs, entities, Storage Access Framework (SAF) tree coordinator, multi-format converters (`.docx`, `.xlsx`, `.pdf`, `.html`, `.csv`), Myers diff computation via `java-diff-utils`. |
+| **`:presentation`** | Android Library | Jetpack Compose UI, Material 3 theming, block renderers, `EditorViewModel` (MVI StateFlow container), UI effect emissions. |
+| **`:app`** | Android Application | Application entry point (`MarkdownApplication`), Hilt dependency injection root graph, activity hosting, and navigation drawer. |
+
+---
+
+## 🛠️ Technology Stack & Dependencies
+
+All dependencies are centrally managed via Version Catalog ([`gradle/libs.versions.toml`](./gradle/libs.versions.toml)):
+
+| Technology / Library | Version | Purpose |
+| :--- | :--- | :--- |
+| **Kotlin** | `2.4.20` | Primary language with Compose Compiler plugin |
+| **Android Gradle Plugin** | `9.4.0` | Build toolchain |
+| **Gradle** | `9.7.1` | Build system |
+| **Jetpack Compose BOM** | `2026.09.00` | Declarative UI framework |
+| **Room** | `2.8.5` | Local persistence and snapshot database |
+| **Dagger Hilt** | `2.60.1` | Dependency injection |
+| **commonmark-java** | `0.30.0` | Markdown AST parsing and HTML generation |
+| **java-diff-utils** | `4.17` | Myers diff algorithm for bidirectional undo/redo deltas |
+| **pdfbox-android** | `2.0.27.0` | PDF text and structure extraction |
+| **jsoup** | `1.18.3` | HTML parsing and DOM manipulation |
+| **androidx.biometric** | `1.2.0-alpha05` | Biometric authentication (fingerprint/face/credentials) |
+| **Jetpack Glance** | `1.1.1` | Home screen AppWidget |
+| **Turbine** | `1.2.1` | Coroutines Flow testing |
+| **Target / Compile SDK** | `37` (Android 15+) | Minimum SDK: 26 (Android 8.0) |
+
+---
+
+## ⚡ Getting Started
 
 ### Prerequisites
 - **JDK:** OpenJDK 21 (LTS) installed and `JAVA_HOME` configured.
-- **Android SDK:** Platform API 37, Build-Tools installed (typically via Android Studio or command-line tools).
-- **Git:** Installed on system path.
+- **Android SDK:** Platform API 37 and Build-Tools installed.
+- **Android Studio:** Ladybug (or newer recommended).
 
-### 1. Clone & Navigate
+### 1. Clone the Repository
 ```bash
-git clone https://github.com/<username>/MyApplication.git
-cd MyApplication
+git clone https://github.com/NurikBM/Markdown-Editor.git
+cd Markdown-Editor
 ```
 
-### 2. Configure Environment
-Set Android SDK location in `local.properties` (do not commit this file):
-- **Windows:**
-  ```cmd
-  echo sdk.dir=C:\\Users\\%USERNAME%\\AppData\\Local\\Android\\Sdk > local.properties
-  ```
-- **macOS / Linux:**
-  ```bash
-  echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
-  ```
+### 2. Configure SDK Location
+Create a `local.properties` file in the project root:
+```properties
+# Windows:
+sdk.dir=C:\\Users\\<Username>\\AppData\\Local\\Android\\Sdk
 
-### 3. Build & Test
-Run the deterministic build commands using the bundled Gradle wrapper:
+# macOS / Linux:
+sdk.dir=/Users/<Username>/Library/Android/sdk
+```
 
-- **Run Unit Tests:**
-  - Windows: `.\gradlew.bat test`
-  - macOS/Linux: `./gradlew test`
+### 3. Build & Run Tests
+Run the deterministic build commands via the Gradle wrapper:
 
-- **Build Debug APK:**
-  - Windows: `.\gradlew.bat assembleDebug`
-  - macOS/Linux: `./gradlew assembleDebug`
-  - Output artifact: `app/build/outputs/apk/debug/app-debug.apk`
+```bash
+# Run unit tests across all 5 modules (98 tests)
+.\gradlew testDebugUnitTest :domain:test
 
----
+# Compile debug APK
+.\gradlew assembleDebug
 
-## 🏗️ Architecture & Directives for AI Agents
-This repository uses strict state anchors to eliminate context drift and optimize token usage:
-- See [`AGENTS.md`](./AGENTS.md) for immutable architectural constraints, tech stack specifications, and canonical commands.
-- See [`STATE.md`](./STATE.md) for active milestones, atomic task checklist, decision logs, and session handoffs.
+# Compile optimized production release APK (R8 minification & resource shrinking)
+.\gradlew assembleRelease
+# Output: app/build/outputs/apk/release/MarkdownEditor-v1.0-release.apk
+```
 
 ---
 
-## 🧪 CI/CD
-Continuous Integration is automated via GitHub Actions on every pull request and push to `main`:
-- Lint checks and static analysis.
-- Unit test suite validation (`testDebugUnitTest`).
-- Debug APK compilation (`assembleDebug`).
+## 🤝 Contributing
 
+We welcome contributions! Please read our [**Contributing Guide**](./CONTRIBUTING.md) for details on our code style, Clean Architecture standards, SonarCloud quality gates, and the pull request process.
+
+---
+
+## 📄 License & Attributions
+
+- Distributed under the **Apache License 2.0**. See [`LICENSE`](./LICENSE) for more information.
+- Third-party open-source licenses and copyright notices are documented in [`NOTICE`](./NOTICE).

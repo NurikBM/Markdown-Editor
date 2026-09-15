@@ -1,0 +1,65 @@
+Markdown Editor
+Copyright 2026 Markdown Editor Contributors
+
+This product includes software developed by the Markdown Editor Project
+and its contributors.
+
+========================================================================
+Third-Party Software Attributions
+========================================================================
+
+This application incorporates or links against the following open-source
+components:
+
+1. commonmark-java
+   - Description: Pure Java/Kotlin Markdown parser and renderer.
+   - Copyright: Copyright (c) 2015-2024, Atlassian Pty Ltd.
+   - License: BSD 2-Clause License
+   - Homepage: https://github.com/commonmark/commonmark-java
+
+2. java-diff-utils
+   - Description: Myers diff algorithm and delta generation library.
+   - Copyright: Copyright 2009-2024 java-diff-utils contributors.
+   - License: Apache License, Version 2.0
+   - Homepage: https://github.com/java-diff-utils/java-diff-utils
+
+3. PdfBox-Android
+   - Description: Android port of Apache PDFBox for PDF parsing and extraction.
+   - Copyright: Copyright (c) 2014-2024 Birdbrain Technologies LLC / The Apache Software Foundation.
+   - License: Apache License, Version 2.0
+   - Homepage: https://github.com/TomRoush/PdfBox-Android
+
+4. jsoup Java HTML Parser
+   - Description: Java HTML parser and DOM manipulation library.
+   - Copyright: Copyright (c) 2009-2024 Jonathan Hedley (jonathan@hedley.net).
+   - License: MIT License
+   - Homepage: https://jsoup.org/
+
+5. Android Jetpack & Jetpack Compose
+   - Components: Compose Foundation, Material 3, Room, Biometric, Glance, Lifecycle, Activity.
+   - Copyright: Copyright (c) 2018-2026 The Android Open Source Project / Google LLC.
+   - License: Apache License, Version 2.0
+   - Homepage: https://developer.android.com/jetpack
+
+6. Kotlin & Kotlin Coroutines
+   - Copyright: Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+   - License: Apache License, Version 2.0
+   - Homepage: https://kotlinlang.org/
+
+7. Dagger Hilt
+   - Description: Dependency injection framework for Android.
+   - Copyright: Copyright 2020-2026 Google LLC.
+   - License: Apache License, Version 2.0
+   - Homepage: https://dagger.dev/hilt/
+
+8. Turbine
+   - Description: Flow testing library for Kotlin coroutines.
+   - Copyright: Copyright 2020 Cash App.
+   - License: Apache License, Version 2.0
+   - Homepage: https://github.com/cashapp/turbine
+
+9. Google ML Kit (Upcoming Planned Integration)
+   - Description: On-device machine learning SDKs for text recognition (OCR) and document scanning.
+   - Copyright: Copyright 2020-2026 Google LLC.
+   - License: Apache License, Version 2.0 / Google APIs Terms of Service
+   - Homepage: https://developers.google.com/ml-kit
