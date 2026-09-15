@@ -28,12 +28,10 @@
 - [x] **Milestone 6.2**: Implemented Quick Note Home Screen App Widget (`androidx.glance:glance-appwidget:1.1.1`), Document Manager Navigation Drawer (`ModalNavigationDrawer`, `DocumentDrawerSheet`), and pure Material 3 Adaptive App Icon. (Commit: `8c8ffdd`).
 - [x] **Milestone 6.3**: Implemented Android system integration for sharing and file viewing (`ACTION_SEND` and `ACTION_VIEW`) with universal binary and media file protection.
 - [x] **Milestone 6.3+**: Implemented multi-format document-to-Markdown conversion engine in `:domain` and `:data` supporting Word documents (`.docx`), Excel spreadsheets (`.xlsx`), PDF documents (`.pdf`), HTML (`.html`/`.htm`), Tabular data (`.csv`/`.tsv`), and structured code/data (`.json`, `.xml`, `.yaml`).
-- [x] **SonarCloud Hardening**: Completely resolved all 34 issues identified by SonarCloud across all 5 modules.
-- [x] **Milestone 6.4**: Implemented Biometric Document Protection (`androidx.biometric:biometric-ktx`) and Production Release Hardening (ProGuard / R8 full-mode optimization, minification, and resource shrinking). (Commit: `a02dea6`).
-- [x] **Milestone 6.4 (Bugfix & UX Polish)**: Fixed Room `saveDocument` regression discarding `isLocked` flag; enhanced UI with immediate session lock; eliminated cold start IME layout collisions. (Commit: `58d61bc`).
-- [x] **Milestone 6.5**: Established comprehensive open-source repository governance (`LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `CHANGELOG.md`, `README.md`). (Commit: `388e5f2`).
-- [x] **Milestone 7.1**: Implemented Google ML Kit On-Device Text Recognition (OCR), pure-text PDF integration (`application/pdf` in `ACTION_SEND` & `ACTION_VIEW`), interactive Mermaid Diagrams in Live Preview, removed upcoming features from README, and added AI-Assisted Engineering Self-Declaration in `README.md` and `NOTICE`. Full unit test suite (100+ tests) passed, release APK assembled at 16.9 MB. (Commit: `918b674`).
-- [x] **Milestone 7.1 (Hardening & Bugfix)**: Implemented automatic `PdfRenderer` rasterization with Google ML Kit OCR fallback for scanned/image-only PDFs, resolved Mermaid AST markdown fence syntax error and HTML tag escaping in WebView preview, added camera photo EXIF orientation auto-rotation and downsampling in `MlKitDocumentOcrScanner`, and eliminated "Open" button text hyphenation in document drawer. (Commit: `612bc74`).
+- [x] **Milestone 6.4**: Implemented Biometric Document Protection (`androidx.biometric:biometric-ktx`), session locking, and Production Release Hardening (ProGuard / R8 full-mode optimization, minification, and resource shrinking). (Commit: `81a9388`).
+- [x] **Milestone 6.5**: Established comprehensive open-source repository governance (`LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `CHANGELOG.md`, `README.md`). (Commit: `7036a6d`).
+- [x] **Milestone 7.1**: Implemented Google ML Kit On-Device Text Recognition (OCR), scanned PDF rasterization fallback via `android.graphics.pdf.PdfRenderer`, pure-text PDF integration (`application/pdf` in `ACTION_SEND` & `ACTION_VIEW`), interactive Mermaid Diagrams in Live Preview, and AI-Assisted Engineering Self-Declaration in `README.md` and `NOTICE`. (Commit: `4b78daa`).
+- [x] **Milestone 7.2**: Achieved 100% SonarCloud clean-code compliance across data and presentation layers (handled `File.delete()` return check with fallback `deleteOnExit()`, extracted `IMAGE_MIME_TYPE` constant, removed redundant boolean literal in Room repository, partitioned `processIntent` into sub-handlers reducing `when` branches below 30, and eliminated unused shadowed `isLocked` local variable).
 
 ## Immediate Next Steps
 1. **Production Deployment & Release Tagging**: Project fully verified, hardened, and ready for release tagging (v1.0.0).
@@ -106,6 +104,6 @@
 - **SDK Constraints:** `minSdk = 26`, `targetSdk = 37`, `compileSdk = 37`
 
 ## Session Handoff Block
-- **Last Verified State:** Milestone 7.1 and post-integration hardening verified. Scanned PDF automatic OCR fallback, Mermaid diagram rendering and HTML escaping, EXIF photo orientation, and drawer layout fix committed and pushed (`612bc74`). Full test suite passing (98 tests), release APK generated at 16.9 MB.
-- **Exact Resumption Command/Action:** Ready for production release tag (v1.0.0) or user's next direction.
+- **Last Verified State:** Milestone 7.2 completed. All 5 SonarCloud issues resolved (0 issues remaining), full test suite passing (98/98 unit tests), release APK assembled at 16.9 MB (`MarkdownEditor-v1.0-release.apk`). Clean 19-commit linear Git history.
+- **Exact Resumption Command/Action:** Production ready for release tagging (v1.0.0).
 

@@ -85,6 +85,50 @@ class EditorViewModel(
 
     override fun processIntent(intent: EditorIntent) {
         when (intent) {
+            is EditorIntent.FindNextMatch,
+            is EditorIntent.FindPreviousMatch,
+            is EditorIntent.ReplaceCurrentMatch,
+            is EditorIntent.ReplaceAllMatches,
+            is EditorIntent.ToggleFindReplace,
+            is EditorIntent.SetSearchQuery,
+            is EditorIntent.SetReplaceQuery,
+            is EditorIntent.SetCaseSensitive -> processSearchIntent(intent)
+
+            is EditorIntent.UnlockDocumentSession,
+            is EditorIntent.LockDocumentSession,
+            is EditorIntent.RequestBiometricUnlock,
+            is EditorIntent.SetDocumentLocked -> processSecurityIntent(intent)
+
+            else -> processCoreIntent(intent)
+        }
+    }
+
+    private fun processSearchIntent(intent: EditorIntent) {
+        when (intent) {
+            is EditorIntent.ToggleFindReplace -> toggleFindReplace(intent.visible)
+            is EditorIntent.SetSearchQuery -> setSearchQuery(intent.query)
+            is EditorIntent.SetReplaceQuery -> setReplaceQuery(intent.query)
+            is EditorIntent.SetCaseSensitive -> setCaseSensitive(intent.caseSensitive)
+            EditorIntent.FindNextMatch -> findNextMatch()
+            EditorIntent.FindPreviousMatch -> findPreviousMatch()
+            EditorIntent.ReplaceCurrentMatch -> replaceCurrentMatch()
+            EditorIntent.ReplaceAllMatches -> replaceAllMatches()
+            else -> Unit
+        }
+    }
+
+    private fun processSecurityIntent(intent: EditorIntent) {
+        when (intent) {
+            is EditorIntent.SetDocumentLocked -> setDocumentLocked(intent.isLocked)
+            EditorIntent.UnlockDocumentSession -> unlockDocumentSession()
+            EditorIntent.LockDocumentSession -> lockDocumentSession()
+            EditorIntent.RequestBiometricUnlock -> requestBiometricUnlock()
+            else -> Unit
+        }
+    }
+
+    private fun processCoreIntent(intent: EditorIntent) {
+        when (intent) {
             is EditorIntent.LoadDocument -> loadDocument(intent.documentId)
             is EditorIntent.UpdateBlock -> updateBlock(intent.blockId, intent.newContent)
             is EditorIntent.SplitBlock -> splitBlock(intent.blockId, intent.cursorPosition)
@@ -95,29 +139,18 @@ class EditorViewModel(
             is EditorIntent.ExportDocument -> exportDocument(intent.format)
             is EditorIntent.ToggleTableOfContents -> toggleTableOfContents(intent.visible)
             is EditorIntent.NavigateToHeading -> navigateToHeading(intent.item)
-            is EditorIntent.ToggleFindReplace -> toggleFindReplace(intent.visible)
-            is EditorIntent.SetSearchQuery -> setSearchQuery(intent.query)
-            is EditorIntent.SetReplaceQuery -> setReplaceQuery(intent.query)
-            is EditorIntent.SetCaseSensitive -> setCaseSensitive(intent.caseSensitive)
             is EditorIntent.ApplyFormatting -> applyFormatting(intent.action)
             is EditorIntent.SetTheme -> setTheme(intent.theme)
             is EditorIntent.ToggleDrawer -> toggleDrawer(intent.open)
             is EditorIntent.CreateNewDocument -> createNewDocument()
             is EditorIntent.DeleteDocument -> deleteDocument(intent.documentId)
             is EditorIntent.OpenExternalDocument -> openExternalDocument(intent.fileName, intent.content, intent.rawBytes)
-            is EditorIntent.SetDocumentLocked -> setDocumentLocked(intent.isLocked)
-            EditorIntent.UnlockDocumentSession -> unlockDocumentSession()
-            EditorIntent.LockDocumentSession -> lockDocumentSession()
-            EditorIntent.RequestBiometricUnlock -> requestBiometricUnlock()
-            EditorIntent.FindNextMatch -> findNextMatch()
-            EditorIntent.FindPreviousMatch -> findPreviousMatch()
-            EditorIntent.ReplaceCurrentMatch -> replaceCurrentMatch()
-            EditorIntent.ReplaceAllMatches -> replaceAllMatches()
             EditorIntent.TogglePreview -> togglePreview()
             EditorIntent.Undo -> performUndo()
             EditorIntent.Redo -> performRedo()
             EditorIntent.SaveExplicitly -> saveExplicitly()
             is EditorIntent.ScanImageWithOcr -> scanImageWithOcr(intent.imageBytes, intent.fileName)
+            else -> Unit
         }
     }
 
@@ -359,8 +392,6 @@ class EditorViewModel(
             val result = withContext(dispatcherProvider.io) {
                 markdownRepository.getDocument(documentId)
             }
-
-            val isLocked = uiState.value.recentDocuments.find { it.id == documentId }?.isLocked ?: false
 
             result.onSuccess { doc ->
                 val activeDoc = if (doc.blocks.isEmpty()) {

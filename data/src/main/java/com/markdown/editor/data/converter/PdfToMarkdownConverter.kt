@@ -119,7 +119,9 @@ class PdfToMarkdownConverter(
         } catch (_: Exception) {
             null
         } finally {
-            tempFile.delete()
+            if (!tempFile.delete()) {
+                tempFile.deleteOnExit()
+            }
         }
     }
 

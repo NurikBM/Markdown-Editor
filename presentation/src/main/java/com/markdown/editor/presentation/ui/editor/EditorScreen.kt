@@ -88,6 +88,8 @@ private val IMPORT_MIME_TYPES = arrayOf(
     "text/*"
 )
 
+private const val IMAGE_MIME_TYPE = "image/*"
+
 /**
  * Main screen composable hosting the block editor, navigation drawer, top bar, and preview panes.
  * Enforces key-based recomposition isolation per [BlockId] and supports Split-View mode.
@@ -140,7 +142,7 @@ fun EditorScreen(
         previewListState = previewListState,
         context = context,
         onIntent = onIntent,
-        onScanOcr = { ocrPickerLauncher.launch("image/*") }
+        onScanOcr = { ocrPickerLauncher.launch(IMAGE_MIME_TYPE) }
     )
 
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -163,7 +165,7 @@ fun EditorScreen(
                 },
                 onScanOcr = {
                     onIntent(EditorIntent.ToggleDrawer(false))
-                    ocrPickerLauncher.launch("image/*")
+                    ocrPickerLauncher.launch(IMAGE_MIME_TYPE)
                 }
             )
         },
@@ -175,7 +177,7 @@ fun EditorScreen(
             snackbarHostState = snackbarHostState,
             editorListState = editorListState,
             previewListState = previewListState,
-            onScanOcr = { ocrPickerLauncher.launch("image/*") },
+            onScanOcr = { ocrPickerLauncher.launch(IMAGE_MIME_TYPE) },
             modifier = modifier
         )
     }

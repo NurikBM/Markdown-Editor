@@ -88,7 +88,7 @@ class RoomMarkdownRepository(
         try {
             val now = System.currentTimeMillis()
             val existing = documentDao.getById(document.id)
-            val resolvedLocked = metadata?.isLocked ?: if (document.isLocked) true else (existing?.isLocked ?: false)
+            val resolvedLocked = metadata?.isLocked ?: (document.isLocked || (existing?.isLocked ?: false))
             val entity = DocumentMetadataEntity(
                 documentId = document.id,
                 title = metadata?.title ?: document.title,
